@@ -1,4 +1,4 @@
 build:
 	git submodule init
 	git submodule update
-	cd sbr-sys; cargo build --release
+	cd sbr-sys; RUSTFLAGS="-C target-cpu=native" cargo build --release

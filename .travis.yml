@@ -15,4 +15,4 @@ script:
   - pwd
   - ls -lah
   - ls -lah sbr-sys/target/release
-  - go test -v ./...
+  - go test -v -x
