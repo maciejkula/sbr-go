@@ -11,6 +11,7 @@ before_install:
   - sudo apt-get install -y gfortran
 
 script:
+  - export LD_LIBRARY_PATH=$(pwd):$LD_LIBRARY_PATH
   - go generate
   - ls -lah
   - ls -lah sbr-sys/target/release
