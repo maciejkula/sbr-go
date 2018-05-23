@@ -12,6 +12,7 @@ before_install:
 
 script:
   - go generate
+  - pwd
   - ls -lah
   - ls -lah sbr-sys/target/release
   - go test
