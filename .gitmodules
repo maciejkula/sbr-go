@@ -1,0 +1,3 @@
+[submodule "sbr-sys"]
+	path = sbr-sys
+	url = git@github.com:maciejkula/sbr-sys.git
