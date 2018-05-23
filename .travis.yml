@@ -2,13 +2,10 @@ language: go
 go:
   - "1.10"
 
-matrix:
-  include:
-    - language: rust
-    - language: go
-      go: "1.10"
-
 before_install:
+  - curl https://sh.rustup.rs -sSf | sh -s -- -y
+  - export PATH=$HOME/.cargo/bin:$PATH
+  - cargo --version
   - sudo apt-get -qq update
   - sudo apt-get install -y gfortran
 
@@ -17,4 +14,6 @@ script:
   - pwd
   - ls -lah
   - ls -lah sbr-sys/target/release
-  - go test -v -x
+  - go test -c
+  - ls -lah
+  - ./sbr-go.test -test.v
