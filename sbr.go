@@ -3,7 +3,7 @@ package sbr
 //go:generate make build
 
 /*
-#cgo LDFLAGS: libsbr_sys.so
+#cgo LDFLAGS: -L${SRCDIR}/sbr-sys/target/release -lsbr_sys
 #include <sys/types.h>
 #include <stdlib.h>
 #include <sbr-sys/bindings.h>
