@@ -10,26 +10,28 @@ package sbr
 */
 import "C"
 import (
+	"unsafe"
 	"fmt"
 	"math/rand"
-	"runtime"
 )
+
+type usize = C.size_t
 
 type Interactions struct {
 	numUsers   int
 	numItems   int
-	users      []C.int32_t
-	items      []C.int32_t
-	timestamps []C.int32_t
+	users      []usize
+	items      []usize
+	timestamps []usize
 }
 
 func NewInteractions(numUsers int, numItems int) Interactions {
 	return Interactions{
 		numUsers:   numUsers,
 		numItems:   numItems,
-		users:      make([]C.int32_t, 0),
-		items:      make([]C.int32_t, 0),
-		timestamps: make([]C.int32_t, 0),
+		users:      make([]usize, 0),
+		items:      make([]usize, 0),
+		timestamps: make([]usize, 0),
 	}
 }
 
@@ -41,9 +43,9 @@ func (self *Interactions) Append(userId int, itemId int, timestamp int) error {
 		self.numItems = itemId + 1
 	}
 
-	self.users = append(self.users, C.int32_t(userId))
-	self.items = append(self.items, C.int32_t(itemId))
-	self.timestamps = append(self.timestamps, C.int32_t(timestamp))
+	self.users = append(self.users, usize(userId))
+	self.items = append(self.items, usize(itemId))
+	self.timestamps = append(self.timestamps, usize(timestamp))
 
 	return nil
 }
@@ -100,15 +102,13 @@ func NewImplicitLSTMModel(numItems int) *ImplicitLSTMModel {
 		NumEpochs:         10,
 	}
 
-	runtime.SetFinalizer(model, freeImplicitLSTMModel)
-
 	return model
 }
 
-func freeImplicitLSTMModel(model *ImplicitLSTMModel) {
-	if model.model != nil {
-		fmt.Println("Freeing model")
-		C.implicit_lstm_free(model.model)
+func (self *ImplicitLSTMModel) Free() {
+	if self.model != nil {
+		C.implicit_lstm_free(self.model)
+		self.model = nil
 	}
 }
 
@@ -121,15 +121,15 @@ func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 		}
 
 		hyper := C.LSTMHyperparameters{
-			num_items:           C.uint64_t(self.NumItems),
-			max_sequence_length: C.uint64_t(self.MaxSequenceLength),
-			item_embedding_dim:  C.uint64_t(self.ItemEmbeddingDim),
+			num_items:           usize(self.NumItems),
+			max_sequence_length: usize(self.MaxSequenceLength),
+			item_embedding_dim:  usize(self.ItemEmbeddingDim),
 			learning_rate:       C.float(self.LearningRate),
 			l2_penalty:          C.float(self.L2Penalty),
 			loss:                C.Hinge,
 			optimizer:           C.Adagrad,
-			num_threads:         C.uint64_t(self.NumThreads),
-			num_epochs:          C.uint64_t(self.NumEpochs),
+			num_threads:         usize(self.NumThreads),
+			num_epochs:          usize(self.NumEpochs),
 			random_seed:         seed,
 		}
 		result := C.implicit_lstm_new(hyper)
@@ -156,6 +156,57 @@ func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 	return float32(*result.value), nil
 }
 
+func (self *ImplicitLSTMModel) Predict(interactionHistory []int, itemsToScore []int) ([]float32, error) {
+
+	if self.model == nil {
+		return nil, fmt.Errorf("Model has to be fit first.")
+	}
+
+	if len(interactionHistory) == 0 {
+		return nil, fmt.Errorf("Interaction history must not be empty.")
+	}
+
+	if len(itemsToScore) == 0 {
+		return nil, fmt.Errorf("Items to score must not be empty")
+	}
+
+	history := make([]usize, len(interactionHistory))
+	items := make([]usize, len(itemsToScore))
+	out := make([]C.float, len(itemsToScore))
+
+	for i, v := range interactionHistory {
+		if v >= self.NumItems {
+			return nil, fmt.Errorf("Item ids must be smaller than NumItems")
+		}
+		history[i] = usize(v)
+	}
+
+	for i, v := range itemsToScore {
+		if v >= self.NumItems {
+			return nil, fmt.Errorf("Item ids must be smaller than NumItems")
+		}
+		items[i] = usize(v)
+	}
+
+	err := C.implicit_lstm_predict(self.model,
+		&history[0],
+		C.size_t(len(history)),
+		&items[0],
+		&out[0],
+		C.size_t(len(out)))
+
+	if err != nil {
+		return nil, fmt.Errorf(C.GoString(err))
+	}
+
+	predictions := make([]float32, len(out))
+	for i, v := range out {
+		predictions[i] = float32(v)
+	}
+
+	return predictions, nil
+}
+
 func (self *ImplicitLSTMModel) MRRScore(data *Interactions) (float32, error) {
 	if self.model == nil {
 		return 0.0, fmt.Errorf("Model has to be fit first.")
@@ -173,4 +224,37 @@ func (self *ImplicitLSTMModel) MRRScore(data *Interactions) (float32, error) {
 	}
 
 	return float32(*result.value), nil
+}
+
+func (self *ImplicitLSTMModel) Serialize() ([]byte, error) {
+	if self.model == nil {
+		return nil, fmt.Errorf("Model has to be fit first.")
+	}
+
+	size := C.implicit_lstm_get_serialized_size(self.model)
+
+	out := make([]byte, size)
+	err := C.implicit_lstm_serialize(self.model,
+		(*C.uchar)(unsafe.Pointer(&out[0])),
+		usize(len(out)))
+
+	if err != nil {
+		return nil, fmt.Errorf(C.GoString(err))
+	}
+
+	return out, nil
+}
+
+func (self *ImplicitLSTMModel) Deserialize(data []byte) error {
+	result := C.implicit_lstm_deserialize(
+		(*C.uchar)(unsafe.Pointer(&data[0])),
+		usize(len(data)))
+
+	if result.error != nil {
+		return fmt.Errorf(C.GoString(result.error))
+	}
+
+	self.model = result.value
+
+	return nil
 }

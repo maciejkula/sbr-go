@@ -3,6 +3,7 @@ package sbr
 import (
 	"bufio"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -88,6 +89,43 @@ func TestMovielens100K(t *testing.T) {
 	fmt.Printf("Loss %v, MRR: %v\n", loss, mrr)
 
 	expectedMrr := float32(0.08)
+	if mrr < expectedMrr {
+		t.Errorf("MRR smaller than %v", expectedMrr)
+	}
+
+	predictions, err := model.Predict([]int{1, 2, 3}, []int{100, 200, 300, 400})
+	if err != nil {
+		t.Errorf("Failed predictions %v", err)
+	}
+	if len(predictions) != 4 {
+		t.Errorf("Got wrong number of predictions")
+	}
+
+	predictions, err = model.Predict([]int{1, 2, 3}, []int{100, 200, 300, 400, 10000})
+	if err == nil {
+		t.Errorf("Should have errored with items out of range.")
+	}
+
+	serialized, err := model.Serialize()
+	if err != nil {
+		t.Errorf("Couldn't serialize %v", err)
+	}
+
+	deserializedModel := &ImplicitLSTMModel{}
+	modelJson, _ := json.Marshal(model)
+	_ = json.Unmarshal(modelJson, deserializedModel)
+
+	err = deserializedModel.Deserialize(serialized)
+	if err != nil {
+		t.Errorf("Couldn't deserialize")
+	}
+
+	mrr, err = deserializedModel.MRRScore(data)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("After deserialization: loss %v, MRR: %v\n", loss, mrr)
+
 	if mrr < expectedMrr {
 		t.Errorf("MRR smaller than %v", expectedMrr)
 	}

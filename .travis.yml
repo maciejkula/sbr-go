@@ -3,6 +3,9 @@ sudo: required
 
 language: go
 go:
+  - 1.7.x
+  - 1.8.x
+  - 1.9.x
   - "1.10"
 
 before_install:
@@ -19,4 +22,4 @@ install:
 
 script:
   - go test -c
-  - strace ./sbr-go.test -test.v
+  - ./sbr-go.test -test.v
