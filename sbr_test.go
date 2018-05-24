@@ -88,7 +88,7 @@ func TestMovielens100K(t *testing.T) {
 	}
 	fmt.Printf("Loss %v, MRR: %v\n", loss, mrr)
 
-	expectedMrr := float32(0.08)
+	expectedMrr := float32(0.07)
 	if mrr < expectedMrr {
 		t.Errorf("MRR smaller than %v", expectedMrr)
 	}

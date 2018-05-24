@@ -10,28 +10,26 @@ package sbr
 */
 import "C"
 import (
-	"unsafe"
 	"fmt"
 	"math/rand"
+	"unsafe"
 )
-
-type usize = C.size_t
 
 type Interactions struct {
 	numUsers   int
 	numItems   int
-	users      []usize
-	items      []usize
-	timestamps []usize
+	users      []C.size_t
+	items      []C.size_t
+	timestamps []C.size_t
 }
 
 func NewInteractions(numUsers int, numItems int) Interactions {
 	return Interactions{
 		numUsers:   numUsers,
 		numItems:   numItems,
-		users:      make([]usize, 0),
-		items:      make([]usize, 0),
-		timestamps: make([]usize, 0),
+		users:      make([]C.size_t, 0),
+		items:      make([]C.size_t, 0),
+		timestamps: make([]C.size_t, 0),
 	}
 }
 
@@ -43,9 +41,9 @@ func (self *Interactions) Append(userId int, itemId int, timestamp int) error {
 		self.numItems = itemId + 1
 	}
 
-	self.users = append(self.users, usize(userId))
-	self.items = append(self.items, usize(itemId))
-	self.timestamps = append(self.timestamps, usize(timestamp))
+	self.users = append(self.users, C.size_t(userId))
+	self.items = append(self.items, C.size_t(itemId))
+	self.timestamps = append(self.timestamps, C.size_t(timestamp))
 
 	return nil
 }
@@ -121,15 +119,15 @@ func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 		}
 
 		hyper := C.LSTMHyperparameters{
-			num_items:           usize(self.NumItems),
-			max_sequence_length: usize(self.MaxSequenceLength),
-			item_embedding_dim:  usize(self.ItemEmbeddingDim),
+			num_items:           C.size_t(self.NumItems),
+			max_sequence_length: C.size_t(self.MaxSequenceLength),
+			item_embedding_dim:  C.size_t(self.ItemEmbeddingDim),
 			learning_rate:       C.float(self.LearningRate),
 			l2_penalty:          C.float(self.L2Penalty),
 			loss:                C.Hinge,
 			optimizer:           C.Adagrad,
-			num_threads:         usize(self.NumThreads),
-			num_epochs:          usize(self.NumEpochs),
+			num_threads:         C.size_t(self.NumThreads),
+			num_epochs:          C.size_t(self.NumEpochs),
 			random_seed:         seed,
 		}
 		result := C.implicit_lstm_new(hyper)
@@ -170,22 +168,22 @@ func (self *ImplicitLSTMModel) Predict(interactionHistory []int, itemsToScore []
 		return nil, fmt.Errorf("Items to score must not be empty")
 	}
 
-	history := make([]usize, len(interactionHistory))
-	items := make([]usize, len(itemsToScore))
+	history := make([]C.size_t, len(interactionHistory))
+	items := make([]C.size_t, len(itemsToScore))
 	out := make([]C.float, len(itemsToScore))
 
 	for i, v := range interactionHistory {
 		if v >= self.NumItems {
 			return nil, fmt.Errorf("Item ids must be smaller than NumItems")
 		}
-		history[i] = usize(v)
+		history[i] = C.size_t(v)
 	}
 
 	for i, v := range itemsToScore {
 		if v >= self.NumItems {
 			return nil, fmt.Errorf("Item ids must be smaller than NumItems")
 		}
-		items[i] = usize(v)
+		items[i] = C.size_t(v)
 	}
 
 	err := C.implicit_lstm_predict(self.model,
@@ -236,7 +234,7 @@ func (self *ImplicitLSTMModel) Serialize() ([]byte, error) {
 	out := make([]byte, size)
 	err := C.implicit_lstm_serialize(self.model,
 		(*C.uchar)(unsafe.Pointer(&out[0])),
-		usize(len(out)))
+		C.size_t(len(out)))
 
 	if err != nil {
 		return nil, fmt.Errorf(C.GoString(err))
@@ -248,7 +246,7 @@ func (self *ImplicitLSTMModel) Serialize() ([]byte, error) {
 func (self *ImplicitLSTMModel) Deserialize(data []byte) error {
 	result := C.implicit_lstm_deserialize(
 		(*C.uchar)(unsafe.Pointer(&data[0])),
-		usize(len(data)))
+		C.size_t(len(data)))
 
 	if result.error != nil {
 		return fmt.Errorf(C.GoString(result.error))
