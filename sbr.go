@@ -1,9 +1,38 @@
+// A recommender system package for Go.
+//
+// Sbr implements cutting-edge sequence-based recommenders: for every user, we examine what
+// they have interacted up to now to predict what they are going to consume next.
+//
+// Installation requirements
+//
+// You will need:
+//
+// 1. The Rust compiler.
+//
+// 2. A Fortran compiler (by default, sbr uses OpenBLAS for numerical heavy lifting).
+//
+// You can install Rust from https://www.rust-lang.org/en-US/install.html by running
+//  curl https://sh.rustup.rs -sSf | sh
+// To install Fortran run
+//  sudo apt-get install -y gfortran
+// on Ubuntu or
+//  brew install gfortran
+// on OSX.
+//
+// Installation
+//
+// Run
+//  go get github.com/maciejkula/sbr-go
+// followed by
+//  make
+// in the installation directory. This wil compile the package's native dependencies.
+// The resulting libsbr_sys.{so/dylib} file must be available at runtime.
 package sbr
 
-//go:generate make build
+//go:generate make all
 
 /*
-#cgo LDFLAGS: -L${SRCDIR}/sbr-sys/target/release -lsbr_sys
+#cgo LDFLAGS: -L${SRCDIR}/sbr-sys/target/release -lsbr_sys -Wl,-rpath,'${SRCDIR}/sbr-sys/target/release'
 #include <sys/types.h>
 #include <stdlib.h>
 #include <sbr-sys/bindings.h>
@@ -13,6 +42,16 @@ import (
 	"fmt"
 	"math/rand"
 	"unsafe"
+)
+
+type Loss int
+type Optimizer int
+
+const (
+	BPR     Loss      = 0
+	Hinge   Loss      = 1
+	Adam    Optimizer = 0
+	Adagrad Optimizer = 1
 )
 
 type Interactions struct {
@@ -76,6 +115,8 @@ type ImplicitLSTMModel struct {
 	L2Penalty         float32
 	NumThreads        int
 	NumEpochs         int
+	Loss              Loss
+	Optimizer         Optimizer
 	RandomSeed        [16]byte
 	model             *C.ImplicitLSTMModelPointer
 }
@@ -94,6 +135,8 @@ func NewImplicitLSTMModel(numItems int) *ImplicitLSTMModel {
 		NumItems:          numItems,
 		MaxSequenceLength: 32,
 		ItemEmbeddingDim:  32,
+		Loss:              Hinge,
+		Optimizer:         Adagrad,
 		LearningRate:      0.01,
 		L2Penalty:         0.0,
 		NumThreads:        1,
@@ -118,14 +161,29 @@ func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 			seed[idx] = C.uchar(val)
 		}
 
+		var loss C.Loss
+		var optimizer C.Optimizer
+
+		if self.Optimizer == Adagrad {
+			optimizer = C.Adagrad
+		} else {
+			optimizer = C.Adam
+		}
+
+		if self.Loss == BPR {
+			loss = C.BPR
+		} else {
+			loss = C.Hinge
+		}
+
 		hyper := C.LSTMHyperparameters{
 			num_items:           C.size_t(self.NumItems),
 			max_sequence_length: C.size_t(self.MaxSequenceLength),
 			item_embedding_dim:  C.size_t(self.ItemEmbeddingDim),
 			learning_rate:       C.float(self.LearningRate),
 			l2_penalty:          C.float(self.L2Penalty),
-			loss:                C.Hinge,
-			optimizer:           C.Adagrad,
+			loss:                loss,
+			optimizer:           optimizer,
 			num_threads:         C.size_t(self.NumThreads),
 			num_epochs:          C.size_t(self.NumEpochs),
 			random_seed:         seed,

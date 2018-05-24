@@ -69,6 +69,8 @@ func TestMovielens100K(t *testing.T) {
 	model.L2Penalty = 0.0004
 	model.NumEpochs = 10
 	model.NumThreads = 1
+	model.Loss = Hinge
+	model.Optimizer = Adagrad
 
 	// Set random seed
 	var randomSeed [16]byte

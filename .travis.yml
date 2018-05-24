@@ -1,25 +1,29 @@
-dist: trusty
-sudo: required
+matrix:
+  include:
+    - os: linux
+      dist: trusty
+      sudo: required
+    - os: osx
 
 language: go
 go:
-  - 1.7.x
-  - 1.8.x
-  - 1.9.x
+#  - 1.7.x
   - "1.10"
+
+addons:
+  apt:
+    packages:
+      - gfortran
 
 before_install:
   - curl https://sh.rustup.rs -sSf | sh -s -- -y
   - export PATH=$HOME/.cargo/bin:$PATH
   - cargo --version
-  - sudo apt-get -qq update
-  - sudo apt-get install -y gfortran
 
 install:
   - go generate
-  - export CGO_LDFLAGS="-L$(pwd)/sbr-sys/target/release/"
-  - export LD_LIBRARY_PATH="$(pwd)/sbr-sys/target/release/:$LD_LIBRARY_PATH"
+  - export CGO_LDFLAGS_ALLOW="-Wl*"
 
 script:
-  - go test -c
-  - ./sbr-go.test -test.v
+  - go build
+  - go test
