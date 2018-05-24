@@ -1,3 +1,6 @@
+dist: trusty
+sudo: required
+
 language: go
 go:
   - "1.10"
@@ -9,11 +12,11 @@ before_install:
   - sudo apt-get -qq update
   - sudo apt-get install -y gfortran
 
-script:
+install:
   - go generate
-  - pwd
-  - ls -lah
-  - ls -lah sbr-sys/target/release
+  - export CGO_LDFLAGS="-L$(pwd)/sbr-sys/target/release/"
+  - export LD_LIBRARY_PATH="$(pwd)/sbr-sys/target/release/:$LD_LIBRARY_PATH"
+
+script:
   - go test -c
-  - ls -lah
-  - ./sbr-go.test -test.v
+  - strace ./sbr-go.test -test.v
