@@ -184,7 +184,12 @@ type ImplicitLSTMModel struct {
 	Loss              Loss
 	Optimizer         Optimizer
 	RandomSeed        [16]byte
-	model             *C.ImplicitLSTMModelPointer
+	// We use a double indirection scheme here to make
+	// sure that if a copy of the model struct is created,
+	// calling Free() on _any_ of the instances marks the
+	// model as freed in _all_ the instances. Otherwise
+	// we would have objects referencing a dead C pointer.
+	model **C.ImplicitLSTMModelPointer
 }
 
 // Build a new model with a capacity to represent a certain number of items.
@@ -215,10 +220,19 @@ func NewImplicitLSTMModel(numItems int) *ImplicitLSTMModel {
 	return model
 }
 
+func (self *ImplicitLSTMModel) isTrained() bool {
+	return self.model != nil && *self.model != nil
+}
+
 // Free the memory associated with the underlying model.
+//
+// Unlike other methods of the model, calling Free is _not_
+// thread safe. Use an external synchronisation method when
+// freeing a model used from multiple goroutines.
 func (self *ImplicitLSTMModel) Free() {
-	if self.model != nil {
-		C.implicit_lstm_free(self.model)
+	if self.isTrained() {
+		C.implicit_lstm_free(*self.model)
+		*self.model = nil
 		self.model = nil
 	}
 }
@@ -266,7 +280,7 @@ func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 			return 0.0, fmt.Errorf(C.GoString(result.error))
 		}
 
-		self.model = result.value
+		self.model = &result.value
 	}
 
 	dataFFI, err := data.toFFI()
@@ -275,7 +289,7 @@ func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 	}
 	defer C.interactions_free(dataFFI)
 
-	result := C.implicit_lstm_fit(self.model, dataFFI)
+	result := C.implicit_lstm_fit(*self.model, dataFFI)
 
 	if result.error != nil {
 		return 0.0, fmt.Errorf(C.GoString(result.error))
@@ -292,7 +306,7 @@ func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 // a better recommendation.
 func (self *ImplicitLSTMModel) Predict(interactionHistory []int, itemsToScore []int) ([]float32, error) {
 
-	if self.model == nil {
+	if !self.isTrained() {
 		return nil, fmt.Errorf("Model has to be fit first.")
 	}
 
@@ -322,7 +336,7 @@ func (self *ImplicitLSTMModel) Predict(interactionHistory []int, itemsToScore []
 		items[i] = C.size_t(v)
 	}
 
-	err := C.implicit_lstm_predict(self.model,
+	err := C.implicit_lstm_predict(*self.model,
 		&history[0],
 		C.size_t(len(history)),
 		&items[0],
@@ -347,7 +361,7 @@ func (self *ImplicitLSTMModel) Predict(interactionHistory []int, itemsToScore []
 /// is calculated by taking all but the last interactions of all users as their history,
 /// then making predictions for the last item they are going to see.
 func (self *ImplicitLSTMModel) MRRScore(data *Interactions) (float32, error) {
-	if self.model == nil {
+	if !self.isTrained() {
 		return 0.0, fmt.Errorf("Model has to be fit first.")
 	}
 
@@ -357,7 +371,7 @@ func (self *ImplicitLSTMModel) MRRScore(data *Interactions) (float32, error) {
 	}
 	defer C.interactions_free(dataFFI)
 
-	result := C.implicit_lstm_mrr_score(self.model, dataFFI)
+	result := C.implicit_lstm_mrr_score(*self.model, dataFFI)
 	if result.error != nil {
 		return 0.0, fmt.Errorf(C.GoString(result.error))
 	}
@@ -367,14 +381,14 @@ func (self *ImplicitLSTMModel) MRRScore(data *Interactions) (float32, error) {
 
 /// Serialize the underlying model into a byte array.
 func (self *ImplicitLSTMModel) Serialize() ([]byte, error) {
-	if self.model == nil {
+	if !self.isTrained() {
 		return nil, fmt.Errorf("Model has to be fit first.")
 	}
 
-	size := C.implicit_lstm_get_serialized_size(self.model)
+	size := C.implicit_lstm_get_serialized_size(*self.model)
 
 	out := make([]byte, size)
-	err := C.implicit_lstm_serialize(self.model,
+	err := C.implicit_lstm_serialize(*self.model,
 		(*C.uchar)(unsafe.Pointer(&out[0])),
 		C.size_t(len(out)))
 
@@ -395,7 +409,7 @@ func (self *ImplicitLSTMModel) Deserialize(data []byte) error {
 		return fmt.Errorf(C.GoString(result.error))
 	}
 
-	self.model = result.value
+	self.model = &result.value
 
 	return nil
 }
