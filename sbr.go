@@ -26,13 +26,14 @@
 // followed by
 //  make
 // in the installation directory. This wil compile the package's native dependencies.
-// The resulting libsbr_sys.{so/dylib} file must be available at runtime.
+// The resulting libraries (in ./lib) must be available and in the dylib loading
+// path at runtime.
 package sbr
 
 //go:generate make all
 
 /*
-#cgo LDFLAGS: -L${SRCDIR}/sbr-sys/target/release -lsbr_sys -Wl,-rpath,'${SRCDIR}/sbr-sys/target/release'
+#cgo LDFLAGS: -L${SRCDIR}/lib -lsbr_sys -Wl,-rpath,'${SRCDIR}/lib'
 #include <sys/types.h>
 #include <stdlib.h>
 #include <sbr-sys/bindings.h>
@@ -54,6 +55,40 @@ const (
 	Adagrad Optimizer = 1
 )
 
+// Helper for translating user and item ids into contiguous indices.
+type Indexer struct {
+	idToIdx map[string]int
+	idxToId map[int]string
+}
+
+// Build a new indexer.
+func NewIndexer() Indexer {
+	return Indexer{
+		idToIdx: make(map[string]int),
+		idxToId: make(map[int]string),
+	}
+}
+
+// Add a new id to the indexer, returning its model index.
+func (self *Indexer) Add(id string) int {
+	idx, ok := self.idToIdx[id]
+
+	if !ok {
+		idx = len(self.idToIdx)
+		self.idToIdx[id] = idx
+		return idx
+	} else {
+		return idx
+	}
+}
+
+// Get the id from a model index.
+func (self *Indexer) GetId(idx int) (string, bool) {
+	id, ok := self.idxToId[idx]
+	return id, ok
+}
+
+// Contains interactons for training the model.
 type Interactions struct {
 	numUsers   int
 	numItems   int
@@ -62,6 +97,7 @@ type Interactions struct {
 	timestamps []C.size_t
 }
 
+// Construct new empty interactions.
 func NewInteractions(numUsers int, numItems int) Interactions {
 	return Interactions{
 		numUsers:   numUsers,
@@ -72,7 +108,8 @@ func NewInteractions(numUsers int, numItems int) Interactions {
 	}
 }
 
-func (self *Interactions) Append(userId int, itemId int, timestamp int) error {
+// Add a (user, item, timestamp) triple to the dataset.
+func (self *Interactions) Append(userId int, itemId int, timestamp int) {
 	if userId >= self.numUsers {
 		self.numUsers = userId + 1
 	}
@@ -83,12 +120,21 @@ func (self *Interactions) Append(userId int, itemId int, timestamp int) error {
 	self.users = append(self.users, C.size_t(userId))
 	self.items = append(self.items, C.size_t(itemId))
 	self.timestamps = append(self.timestamps, C.size_t(timestamp))
-
-	return nil
 }
 
+// Get the total number of distinct items in the data.
 func (self *Interactions) NumItems() int {
 	return self.numItems
+}
+
+// Get the total number of distinct users in the data.
+func (self *Interactions) NumUsers() int {
+	return self.numUsers
+}
+
+// Return the number of interactions.
+func (self *Interactions) Len() int {
+	return len(self.users)
 }
 
 func (self *Interactions) toFFI() (*C.InteractionsPointer, error) {
@@ -107,6 +153,37 @@ func (self *Interactions) toFFI() (*C.InteractionsPointer, error) {
 	return result.value, nil
 }
 
+// Split the interaction data into training and test sets. The data is split so that there is
+// no overlap between users in training and test sets, making perfomance evaluation reflect
+// the model's perfomance on entirely new users.
+//
+// Returns a tuple of (training, test) data.
+func TrainTestSplit(data *Interactions, testFraction float64, rng *rand.Rand) (Interactions, Interactions) {
+
+	testUsers := make(map[C.size_t]struct{})
+
+	for idx := 0; idx < data.NumUsers(); idx++ {
+		if rng.Float64() < testFraction {
+			testUsers[C.size_t(idx)] = struct{}{}
+		}
+	}
+
+	train := NewInteractions(data.NumUsers(), data.NumItems())
+	test := NewInteractions(data.NumUsers(), data.NumItems())
+
+	for i, uid := range data.users {
+		_, ok := testUsers[uid]
+		if ok {
+			test.Append(int(uid), int(data.items[i]), int(data.timestamps[i]))
+		} else {
+			train.Append(int(uid), int(data.items[i]), int(data.timestamps[i]))
+		}
+	}
+
+	return train, test
+}
+
+// An implicit-feedback LSTM-based sequence model.
 type ImplicitLSTMModel struct {
 	NumItems          int
 	MaxSequenceLength int
@@ -121,6 +198,9 @@ type ImplicitLSTMModel struct {
 	model             *C.ImplicitLSTMModelPointer
 }
 
+// Build a new model with a capacity to represent a certain number of items.
+// In order to avoid leaking memory, the model must be freed usint its Free
+// method once no longer in use.
 func NewImplicitLSTMModel(numItems int) *ImplicitLSTMModel {
 
 	seed := make([]byte, 16)
@@ -146,6 +226,7 @@ func NewImplicitLSTMModel(numItems int) *ImplicitLSTMModel {
 	return model
 }
 
+// Free the memory associated with the underlying model.
 func (self *ImplicitLSTMModel) Free() {
 	if self.model != nil {
 		C.implicit_lstm_free(self.model)
@@ -153,6 +234,8 @@ func (self *ImplicitLSTMModel) Free() {
 	}
 }
 
+// Fit the model on the supplied data, returning the loss value after fitting.
+// Calling this multiple times will resume training.
 func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 	if self.model == nil {
 
@@ -212,6 +295,12 @@ func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 	return float32(*result.value), nil
 }
 
+// Make predictions. Provides scores for itemsToScore for a user who has
+// seen interactionHistory items. Items in the history argument should be arranged
+// chronologically, from the earliest seen item to the latest seen item.
+//
+// Returns a slice of scores for the supplied items, where a higher score indicates
+// a better recommendation.
 func (self *ImplicitLSTMModel) Predict(interactionHistory []int, itemsToScore []int) ([]float32, error) {
 
 	if self.model == nil {
@@ -263,6 +352,11 @@ func (self *ImplicitLSTMModel) Predict(interactionHistory []int, itemsToScore []
 	return predictions, nil
 }
 
+/// Compute the mean reciprocal rank score of the model on supplied interaction data.
+///
+/// Higher MRR values reflect better predictive performance of the model. The score
+/// is calculated by taking all but the last interactions of all users as their history,
+/// then making predictions for the last item they are going to see.
 func (self *ImplicitLSTMModel) MRRScore(data *Interactions) (float32, error) {
 	if self.model == nil {
 		return 0.0, fmt.Errorf("Model has to be fit first.")
@@ -282,6 +376,7 @@ func (self *ImplicitLSTMModel) MRRScore(data *Interactions) (float32, error) {
 	return float32(*result.value), nil
 }
 
+/// Serialize the underlying model into a byte array.
 func (self *ImplicitLSTMModel) Serialize() ([]byte, error) {
 	if self.model == nil {
 		return nil, fmt.Errorf("Model has to be fit first.")
@@ -301,6 +396,7 @@ func (self *ImplicitLSTMModel) Serialize() ([]byte, error) {
 	return out, nil
 }
 
+// Restore the model from a byte array.
 func (self *ImplicitLSTMModel) Deserialize(data []byte) error {
 	result := C.implicit_lstm_deserialize(
 		(*C.uchar)(unsafe.Pointer(&data[0])),

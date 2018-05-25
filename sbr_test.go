@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"strconv"
 	"testing"
@@ -44,12 +45,9 @@ func readData(path string) (*Interactions, error) {
 			return nil, err
 		}
 
-		err = interactions.Append(int(userId),
+		interactions.Append(int(userId),
 			int(itemId),
 			int(timestamp))
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return &interactions, nil
@@ -61,13 +59,18 @@ func TestMovielens100K(t *testing.T) {
 		panic(err)
 	}
 
+	rng := rand.New(rand.NewSource(42))
+	train, test := TrainTestSplit(data, 0.2, rng)
+
+	fmt.Printf("Train len %v, test len %v\n", train.Len(), test.Len())
+
 	model := NewImplicitLSTMModel(data.NumItems())
 
 	// Set the hyperparameters.
 	model.ItemEmbeddingDim = 32
 	model.LearningRate = 0.16
 	model.L2Penalty = 0.0004
-	model.NumEpochs = 10
+	model.NumEpochs = 15
 	model.NumThreads = 1
 	model.Loss = Hinge
 	model.Optimizer = Adagrad
@@ -79,12 +82,12 @@ func TestMovielens100K(t *testing.T) {
 	}
 	model.RandomSeed = randomSeed
 
-	loss, err := model.Fit(data)
+	loss, err := model.Fit(&train)
 	if err != nil {
 		panic(err)
 	}
 
-	mrr, err := model.MRRScore(data)
+	mrr, err := model.MRRScore(&test)
 	if err != nil {
 		panic(err)
 	}
@@ -122,7 +125,7 @@ func TestMovielens100K(t *testing.T) {
 		t.Errorf("Couldn't deserialize")
 	}
 
-	mrr, err = deserializedModel.MRRScore(data)
+	mrr, err = deserializedModel.MRRScore(&test)
 	if err != nil {
 		panic(err)
 	}
