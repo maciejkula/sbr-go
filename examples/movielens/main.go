@@ -1,67 +1,28 @@
 package main
 
 import (
-	"bufio"
-	"encoding/csv"
 	"fmt"
-	"io"
-	"os"
-	"strconv"
+	"math/rand"
 
 	sbr "github.com/maciejkula/sbr-go"
 )
 
-func readData(path string) (*sbr.Interactions, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-
-	interactions := sbr.NewInteractions(100, 100)
-	reader := bufio.NewReader(file)
-	reader.ReadLine() // Skip the header
-	csvReader := csv.NewReader(reader)
-
-	for {
-		record, err := csvReader.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		userId, err := strconv.ParseInt(record[0], 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		itemId, err := strconv.ParseInt(record[1], 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		timestamp, err := strconv.ParseInt(record[3], 10, 32)
-		if err != nil {
-			return nil, err
-		}
-
-		err = interactions.Append(int(userId),
-			int(itemId),
-			int(timestamp))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &interactions, nil
-}
-
 func main() {
-	data, err := readData("data.csv")
+	// Load the data.
+	data, err := sbr.GetMovielens()
 	if err != nil {
 		panic(err)
 	}
+	fmt.Printf("Loaded movielens data: %v users and %v items for a total of %v interactions\n",
+		data.NumUsers(), data.NumItems(), data.Len())
 
-	model := sbr.NewImplicitLSTMModel(data.NumItems())
+	// Split into test and train.
+	rng := rand.New(rand.NewSource(42))
+	train, test := sbr.TrainTestSplit(data, 0.2, rng)
+	fmt.Printf("Train len %v, test len %v\n", train.Len(), test.Len())
+
+	// Instantiate the model.
+	model := sbr.NewImplicitLSTMModel(train.NumItems())
 
 	// Set the hyperparameters.
 	model.ItemEmbeddingDim = 32
@@ -77,12 +38,16 @@ func main() {
 	}
 	model.RandomSeed = randomSeed
 
-	loss, err := model.Fit(data)
+	// Fit the model.
+	fmt.Printf("Fitting the model...\n")
+	loss, err := model.Fit(&train)
 	if err != nil {
 		panic(err)
 	}
 
-	mrr, err := model.MRRScore(data)
+	// And evaluate.
+	fmt.Printf("Evaluating the model...\n")
+	mrr, err := model.MRRScore(&test)
 	if err != nil {
 		panic(err)
 	}

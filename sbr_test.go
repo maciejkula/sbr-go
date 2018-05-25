@@ -1,60 +1,14 @@
 package sbr
 
 import (
-	"bufio"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math/rand"
-	"os"
-	"strconv"
 	"testing"
 )
 
-func readData(path string) (*Interactions, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-
-	interactions := NewInteractions(100, 100)
-	reader := bufio.NewReader(file)
-	reader.ReadLine() // Skip the header
-	csvReader := csv.NewReader(reader)
-
-	for {
-		record, err := csvReader.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		userId, err := strconv.ParseInt(record[0], 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		itemId, err := strconv.ParseInt(record[1], 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		timestamp, err := strconv.ParseInt(record[3], 10, 32)
-		if err != nil {
-			return nil, err
-		}
-
-		interactions.Append(int(userId),
-			int(itemId),
-			int(timestamp))
-	}
-
-	return &interactions, nil
-}
-
 func TestMovielens100K(t *testing.T) {
-	data, err := readData("data.csv")
+	data, err := GetMovielens()
 	if err != nil {
 		panic(err)
 	}

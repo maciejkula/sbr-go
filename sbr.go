@@ -5,19 +5,8 @@
 //
 // Installation requirements
 //
-// You will need:
-//
-// 1. The Rust compiler.
-//
-// 2. A Fortran compiler (by default, sbr uses OpenBLAS for numerical heavy lifting).
-//
-// You can install Rust from https://www.rust-lang.org/en-US/install.html by running
+// You will need the Rust compiler. You can install Rust from https://www.rust-lang.org/en-US/install.html by running
 //  curl https://sh.rustup.rs -sSf | sh
-// To install Fortran run
-//  sudo apt-get install -y gfortran
-// on Ubuntu or
-//  brew install gfortran
-// on OSX.
 //
 // Installation
 //
