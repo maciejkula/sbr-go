@@ -88,4 +88,24 @@ func TestMovielens100K(t *testing.T) {
 	if mrr < expectedMrr {
 		t.Errorf("MRR smaller than %v", expectedMrr)
 	}
+
+	// Make a copy of the model, and free the model in the first model.
+	// Make sure that using the model on the copy does not segfault, and
+	// is handled correctly.
+	var copy ImplicitLSTMModel = *model
+	if copy.model == nil {
+		t.Errorf("Copy model should be non-nil")
+	}
+
+	model.Free()
+	if model.isTrained() {
+		t.Errorf("Original model pointer should be nil.")
+	}
+	if copy.isTrained() {
+		t.Errorf("Copy model pointer should be nil.")
+	}
+	mrr, err = copy.MRRScore(&test)
+	if err == nil {
+		t.Errorf("Freed copy shouldn't be able to score")
+	}
 }
