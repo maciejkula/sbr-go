@@ -1,5 +1,6 @@
 # sbr-go
 [![Build Status](https://travis-ci.org/maciejkula/sbr-go.svg?branch=master)](https://travis-ci.org/maciejkula/sbr-go)
+[![Godoc](https://img.shields.io/badge/godoc-reference-5272B4.svg?style=flat-square)](https://godoc.org/github.com/maciejkula/sbr-go)
 
 A recommender system package for Go.
 
