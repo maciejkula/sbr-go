@@ -74,3 +74,9 @@ make
 in the installation directory. This wil compile the package's native dependencies.
 The resulting libraries (in `./lib`) must be available and in the dylib loading
 path at runtime.
+
+You may have to set
+```
+export CGO_LDFLAGS_ALLOW="-Wl*"
+```
+depending on your Go version.

@@ -17,6 +17,10 @@
 // in the installation directory. This wil compile the package's native dependencies.
 // The resulting libraries (in ./lib) must be available and in the dylib loading
 // path at runtime.
+//
+// You may have to set
+//  export CGO_LDFLAGS_ALLOW="-Wl*"
+// depending on your Go version.
 package sbr
 
 //go:generate make all
@@ -355,11 +359,11 @@ func (self *ImplicitLSTMModel) Predict(interactionHistory []int, itemsToScore []
 	return predictions, nil
 }
 
-/// Compute the mean reciprocal rank score of the model on supplied interaction data.
-///
-/// Higher MRR values reflect better predictive performance of the model. The score
-/// is calculated by taking all but the last interactions of all users as their history,
-/// then making predictions for the last item they are going to see.
+// Compute the mean reciprocal rank score of the model on supplied interaction data.
+//
+// Higher MRR values reflect better predictive performance of the model. The score
+// is calculated by taking all but the last interactions of all users as their history,
+// then making predictions for the last item they are going to see.
 func (self *ImplicitLSTMModel) MRRScore(data *Interactions) (float32, error) {
 	if !self.isTrained() {
 		return 0.0, fmt.Errorf("Model has to be fit first.")
