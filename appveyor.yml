@@ -9,6 +9,7 @@ install:
 
 test_script:
   - pwd
+  - C:\cygwin\bin\bash -e -l -c "ls"
   - C:\cygwin\bin\bash -e -l -c "ls && cd projects/sbr-go && make"
   - ls ./lib
   - go build
