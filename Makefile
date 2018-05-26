@@ -1,6 +1,6 @@
 ifeq ($(OS),Windows_NT)
 	FEATURES += ""
-	CP = 'mkdir lib; xcopy /s/y "sbr-sys\target\release\*.dll" "lib\"'
+	CP = 'mkdir lib; xcopy /s/y "sbr-sys\target\release\*.dll" "lib\\"'
 else
 	UNAME_S := $(shell uname -s)
 	ifeq ($(UNAME_S),Linux)
