@@ -1,6 +1,6 @@
 ifeq ($(OS),Windows_NT)
 	FEATURES += ""
-	CP = 'mkdir lib; xcopy /s/y "sbr-sys\target\release\*.dll" "lib\\"'
+	CP = 'mkdir lib; xcopy "sbr-sys\target\release\*.dll" lib\ /s /y'
 else
 	UNAME_S := $(shell uname -s)
 	ifeq ($(UNAME_S),Linux)
@@ -14,6 +14,7 @@ else
 endif
 
 all:
+	@eval $(CP)
 	git submodule init
 	git submodule update
 	cd sbr-sys; RUSTFLAGS="-C target-cpu=native" cargo build --features=$(FEATURES) --release
