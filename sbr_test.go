@@ -4,8 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"os"
 	"testing"
 )
+
+func expectedMRR() float32 {
+	switch simd := os.Getenv("MKL_CBWR"); simd {
+	case "SSE4_1":
+		return 0.081
+	case "AVX":
+		return 0.061
+	default:
+		return 0.071
+	}
+}
 
 func TestMovielens100K(t *testing.T) {
 	data, err := GetMovielens()
@@ -47,7 +59,7 @@ func TestMovielens100K(t *testing.T) {
 	}
 	fmt.Printf("Loss %v, MRR: %v\n", loss, mrr)
 
-	expectedMrr := float32(0.07)
+	expectedMrr := expectedMRR()
 	if mrr < expectedMrr {
 		t.Errorf("MRR smaller than %v", expectedMrr)
 	}

@@ -7,7 +7,6 @@ matrix:
 
 language: go
 go:
-#  - 1.7.x
   - "1.10"
 
 addons:
@@ -26,4 +25,4 @@ install:
 
 script:
   - go build
-  - go test
+  - MKL_CBWR=SSE4_1 go test
