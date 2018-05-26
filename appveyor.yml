@@ -8,6 +8,7 @@ install:
   - cargo --version
 
 test_script:
+  - pwd
   - C:\cygwin\bin\bash -e -l -c "make"
   - ls ./lib
   - go build
