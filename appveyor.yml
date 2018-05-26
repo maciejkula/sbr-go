@@ -9,7 +9,7 @@ install:
 
 test_script:
   - pwd
-  - C:\cygwin\bin\bash -e -l -c "cd c/projects/sbr-go && make"
+  - C:\cygwin\bin\bash -e -l -c "ls && cd projects/sbr-go && make"
   - ls ./lib
   - go build
   - MKL_CBWR=SSE4_1 go test
