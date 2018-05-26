@@ -11,4 +11,4 @@ test_script:
   - make
   - ls ./lib
   - go build
-  - go test
+  - MKL_CBWR=SSE4_1 go test

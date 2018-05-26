@@ -25,4 +25,4 @@ install:
 
 script:
   - go build
-  - go test
+  - MKL_CBWR=SSE4_1 go test
