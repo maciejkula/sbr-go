@@ -3,6 +3,7 @@ build: false
 install:
   - curl https://sh.rustup.rs -sSf | sh -s -- -y
   - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
+  - copy C:\MinGW\bin\mingw32-make.exe C:\MinGW\bin\make.exe
   - set PATH=%PATH%;C:\MinGW\bin
   - cargo --version
 
