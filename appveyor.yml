@@ -2,11 +2,11 @@ build: false
 
 install:
   - curl https://sh.rustup.rs -sSf | sh -s -- -y
-  - "set PATH=%HOME%\\.cargo\\bin;%PATH%"
+  - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
   - cargo --version
-  - make
-  - ls ./lib
 
 test_script:
+  - make
+  - ls ./lib
   - go build
   - go test
