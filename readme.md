@@ -77,6 +77,6 @@ path at runtime.
 
 You may have to set
 ```
-export CGO_LDFLAGS_ALLOW="-Wl*"
+export CGO_LDFLAGS_ALLOW="-Wl.*"
 ```
 depending on your Go version.

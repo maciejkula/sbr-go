@@ -19,14 +19,16 @@
 // path at runtime.
 //
 // You may have to set
-//  export CGO_LDFLAGS_ALLOW="-Wl*"
+//  export CGO_LDFLAGS_ALLOW="-Wl.*"
 // depending on your Go version.
 package sbr
 
-//go:generate make all
+// Use both $ORIGIN and ${SRCDIR} for runtime lib loading. The first is relative to the
+// executable location; the second uses an absolute link to the location where the binary
+// was built.
 
 /*
-#cgo LDFLAGS: -L${SRCDIR}/lib -lsbr_sys -Wl,-rpath,'${SRCDIR}/lib'
+#cgo LDFLAGS: -L${SRCDIR}/lib -lsbr_sys -Wl,-rpath,\$ORIGIN/lib:${SRCDIR}/lib
 #include <sys/types.h>
 #include <stdlib.h>
 #include <sbr-sys/bindings.h>
