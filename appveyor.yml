@@ -8,8 +8,6 @@ install:
   - cargo --version
 
 test_script:
-  - pwd
-  - C:\cygwin\bin\bash -e -l -c "cd c:/projects/sbr-go && make"
+  - C:\cygwin64\bin\bash -e -l -c "cd c:/projects/sbr-go && make"
   - ls ./lib
-  - go build
-  - MKL_CBWR=SSE4_1 go test
+  - C:\cygwin64\bin\bash -e -l -c "MKL_CBWR=SSE4_1 go test"
