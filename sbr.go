@@ -19,7 +19,7 @@
 // path at runtime.
 //
 // You may have to set
-//  export CGO_LDFLAGS_ALLOW="-Wl*"
+//  export CGO_LDFLAGS_ALLOW="-Wl.*"
 // depending on your Go version.
 package sbr
 
@@ -28,7 +28,7 @@ package sbr
 // was built.
 
 /*
-#cgo LDFLAGS: -L${SRCDIR}/lib -lsbr_sys -Wl,-rpath,\$ORIGIN/lib -Wl,-rpath,'${SRCDIR}/lib'
+#cgo LDFLAGS: -L${SRCDIR}/lib -lsbr_sys -Wl,-rpath,\$ORIGIN/lib:${SRCDIR}/lib
 #include <sys/types.h>
 #include <stdlib.h>
 #include <sbr-sys/bindings.h>
