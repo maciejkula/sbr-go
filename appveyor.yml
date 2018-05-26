@@ -1,5 +1,12 @@
 build: false
 
+environment:
+  GOPATH: C:\gopath
+  CPATH: C:\Program Files (x86)\WinFsp\inc\fuse
+  ORIGPATH: '%PATH%'
+  NOCCPATH: C:\MinGW\bin;%GOPATH%\bin;%PATH%
+  PATHCC64: C:\mingw-w64\x86_64-6.3.0-posix-seh-rt_v5-rev1\mingw64\bin;%NOCCPATH%
+
 install:
   - curl https://sh.rustup.rs -sSf | sh -s -- -y
   - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
@@ -8,4 +15,6 @@ install:
   - cargo --version
 
 test_script:
-  - C:\msys64\usr\bin\bash -e -l -c "cd c:/projects/sbr-go && make && MKL_CBWR=SSE4_1 go test"
+  - C:\msys64\usr\bin\bash -e -l -c "cd c:/projects/sbr-go && make"
+  - set PATH=%PATHCC64%
+  - MKL_CBWR=SSE4_1 go test
