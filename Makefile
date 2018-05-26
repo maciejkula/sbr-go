@@ -17,3 +17,4 @@ all:
 	mkdir -p ./lib
 	find ./sbr-sys/target/release -name "*.so" -type f -exec cp {} ./lib \;
 	find ./sbr-sys/target/release -name "*.dylib" -type f -exec cp {} ./lib \;
+	find ./sbr-sys/target/release -name "*.dll" -type f -exec cp {} ./lib \;
