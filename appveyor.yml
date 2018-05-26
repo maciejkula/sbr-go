@@ -8,7 +8,7 @@ install:
   - cargo --version
 
 test_script:
-  - make
+  - make all
   - ls ./lib
   - go build
   - MKL_CBWR=SSE4_1 go test
