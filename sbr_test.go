@@ -1,7 +1,6 @@
 package sbr
 
 import (
-	"fmt"
 	"math/rand"
 	"os"
 	"testing"
@@ -27,7 +26,7 @@ func TestMovielens100K(t *testing.T) {
 	rng := rand.New(rand.NewSource(42))
 	train, test := TrainTestSplit(data, 0.2, rng)
 
-	fmt.Printf("Train len %v, test len %v\n", train.Len(), test.Len())
+	t.Logf("Train len %v, test len %v\n", train.Len(), test.Len())
 
 	model := NewImplicitLSTMModel(data.NumItems())
 
@@ -57,7 +56,7 @@ func TestMovielens100K(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Loss %v, MRR: %v\n", loss, mrr)
+	t.Logf("Loss %v, MRR: %v\n", loss, mrr)
 
 	expectedMrr := expectedMRR()
 	if mrr < expectedMrr {
@@ -92,7 +91,7 @@ func TestMovielens100K(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("After deserialization: loss %v, MRR: %v\n", loss, mrr)
+	t.Logf("After deserialization: loss %v, MRR: %v\n", loss, mrr)
 
 	if mrr < expectedMrr {
 		t.Errorf("MRR smaller than %v", expectedMrr)
