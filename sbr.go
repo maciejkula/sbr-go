@@ -33,6 +33,10 @@ package sbr
 */
 import "C"
 import (
+	"bytes"
+	"encoding"
+	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"unsafe"
@@ -42,9 +46,13 @@ type Loss int
 type Optimizer int
 
 const (
-	BPR     Loss      = 0
-	Hinge   Loss      = 1
-	Adam    Optimizer = 0
+	// Bayesian personalised ranking loss.
+	BPR Loss = 0
+	// Pairwise hinge loss.
+	Hinge Loss = 1
+	// ADAM optimizer.
+	Adam Optimizer = 0
+	// Adagrad optimizer.
 	Adagrad Optimizer = 1
 )
 
@@ -178,16 +186,35 @@ func TrainTestSplit(data *Interactions, testFraction float64, rng *rand.Rand) (I
 
 // An implicit-feedback LSTM-based sequence model.
 type ImplicitLSTMModel struct {
-	NumItems          int
+	// Number of items in the model.
+	NumItems int
+	// Maximum sequence length to consider. Setting
+	// this to lower values will yield models that
+	// are faster to train and evaluate, but have
+	// a shorter memory.
 	MaxSequenceLength int
-	ItemEmbeddingDim  int
-	LearningRate      float32
-	L2Penalty         float32
-	NumThreads        int
-	NumEpochs         int
-	Loss              Loss
-	Optimizer         Optimizer
-	RandomSeed        [16]byte
+	// Dimension of item embeddings. Setting this to
+	// higher values will yield models that are slower
+	// to fit but are potentially more expressive (at
+	// the risk of overfitting).
+	ItemEmbeddingDim int
+	// Initial learning rate.
+	LearningRate float32
+	// L2 penalty.
+	L2Penalty float32
+	// Whether the LSTM should use coupled forget and update
+	// gates, yielding a model that's faster to train.
+	Coupled bool
+	// Number of threads to use for training.
+	NumThreads int
+	// Number of epochs to use for training. To run more epochs,
+	// call the fit method multiple times.
+	NumEpochs int
+	// Type of loss function to use.
+	Loss Loss
+	// Optimizer to use.
+	Optimizer  Optimizer
+	RandomSeed [16]byte
 	// We use a double indirection scheme here to make
 	// sure that if a copy of the model struct is created,
 	// calling Free() on _any_ of the instances marks the
@@ -195,6 +222,10 @@ type ImplicitLSTMModel struct {
 	// we would have objects referencing a dead C pointer.
 	model **C.ImplicitLSTMModelPointer
 }
+
+// The model satisfies the BinaryMarshaler and BinaryUnmarshaler interfaces.
+var _ encoding.BinaryMarshaler = &ImplicitLSTMModel{}
+var _ encoding.BinaryUnmarshaler = &ImplicitLSTMModel{}
 
 // Build a new model with a capacity to represent a certain number of items.
 // In order to avoid leaking memory, the model must be freed usint its Free
@@ -217,6 +248,7 @@ func NewImplicitLSTMModel(numItems int) *ImplicitLSTMModel {
 		Optimizer:         Adagrad,
 		LearningRate:      0.01,
 		L2Penalty:         0.0,
+		Coupled:           true,
 		NumThreads:        1,
 		NumEpochs:         10,
 	}
@@ -274,6 +306,7 @@ func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 			l2_penalty:          C.float(self.L2Penalty),
 			loss:                loss,
 			optimizer:           optimizer,
+			coupled:             C.bool(self.Coupled),
 			num_threads:         C.size_t(self.NumThreads),
 			num_epochs:          C.size_t(self.NumEpochs),
 			random_seed:         seed,
@@ -383,37 +416,82 @@ func (self *ImplicitLSTMModel) MRRScore(data *Interactions) (float32, error) {
 	return float32(*result.value), nil
 }
 
-/// Serialize the underlying model into a byte array.
-func (self *ImplicitLSTMModel) Serialize() ([]byte, error) {
-	if !self.isTrained() {
-		return nil, fmt.Errorf("Model has to be fit first.")
-	}
-
-	size := C.implicit_lstm_get_serialized_size(*self.model)
-
-	out := make([]byte, size)
-	err := C.implicit_lstm_serialize(*self.model,
-		(*C.uchar)(unsafe.Pointer(&out[0])),
-		C.size_t(len(out)))
-
-	if err != nil {
-		return nil, fmt.Errorf(C.GoString(err))
-	}
-
-	return out, nil
+type marshalled struct {
+	Hyperparameters []byte
+	Model           []byte
 }
 
-// Restore the model from a byte array.
-func (self *ImplicitLSTMModel) Deserialize(data []byte) error {
-	result := C.implicit_lstm_deserialize(
-		(*C.uchar)(unsafe.Pointer(&data[0])),
-		C.size_t(len(data)))
+// Serialize the model into a byte array. Satisfies the encoding.BinaryMarshaler
+// interface.
+func (self *ImplicitLSTMModel) MarshalBinary() ([]byte, error) {
 
-	if result.error != nil {
-		return fmt.Errorf(C.GoString(result.error))
+	hyperparameters, err := json.Marshal(self)
+	if err != nil {
+		return nil, err
 	}
 
-	self.model = &result.value
+	var model []byte
+
+	if !self.isTrained() {
+		model = make([]byte, 0)
+	} else {
+		size := C.implicit_lstm_get_serialized_size(*self.model)
+
+		model = make([]byte, size)
+		err := C.implicit_lstm_serialize(*self.model,
+			(*C.uchar)(unsafe.Pointer(&model[0])),
+			C.size_t(len(model)))
+
+		if err != nil {
+			return nil, fmt.Errorf(C.GoString(err))
+		}
+	}
+
+	marshalledModel := marshalled{
+		Hyperparameters: hyperparameters,
+		Model:           model,
+	}
+
+	var out bytes.Buffer
+	encoder := gob.NewEncoder(&out)
+	err = encoder.Encode(&marshalledModel)
+	if err != nil {
+		return nil, err
+	}
+
+	return out.Bytes(), nil
+}
+
+// Deserialize the model from a byte array. Satisfies the encoding.BinaryUnmarshaler
+// interface.
+func (self *ImplicitLSTMModel) UnmarshalBinary(data []byte) error {
+	reader := bytes.NewBuffer(data)
+	decoder := gob.NewDecoder(reader)
+
+	marshalledModel := marshalled{}
+	err := decoder.Decode(&marshalledModel)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(marshalledModel.Hyperparameters, self)
+	if err != nil {
+		return err
+	}
+
+	if len(marshalledModel.Model) > 0 {
+		data := marshalledModel.Model
+
+		result := C.implicit_lstm_deserialize(
+			(*C.uchar)(unsafe.Pointer(&data[0])),
+			C.size_t(len(data)))
+
+		if result.error != nil {
+			return fmt.Errorf(C.GoString(result.error))
+		}
+
+		self.model = &result.value
+	}
 
 	return nil
 }

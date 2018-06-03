@@ -1,7 +1,6 @@
 package sbr
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -11,11 +10,11 @@ import (
 func expectedMRR() float32 {
 	switch simd := os.Getenv("MKL_CBWR"); simd {
 	case "SSE4_1":
-		return 0.081
+		return 0.082
 	case "AVX":
-		return 0.061
+		return 0.083
 	default:
-		return 0.071
+		return 0.07
 	}
 }
 
@@ -33,6 +32,7 @@ func TestMovielens100K(t *testing.T) {
 	model := NewImplicitLSTMModel(data.NumItems())
 
 	// Set the hyperparameters.
+	model.MaxSequenceLength = 32
 	model.ItemEmbeddingDim = 32
 	model.LearningRate = 0.16
 	model.L2Penalty = 0.0004
@@ -77,16 +77,13 @@ func TestMovielens100K(t *testing.T) {
 		t.Errorf("Should have errored with items out of range.")
 	}
 
-	serialized, err := model.Serialize()
+	serialized, err := model.MarshalBinary()
 	if err != nil {
 		t.Errorf("Couldn't serialize %v", err)
 	}
 
 	deserializedModel := &ImplicitLSTMModel{}
-	modelJson, _ := json.Marshal(model)
-	_ = json.Unmarshal(modelJson, deserializedModel)
-
-	err = deserializedModel.Deserialize(serialized)
+	err = deserializedModel.UnmarshalBinary(serialized)
 	if err != nil {
 		t.Errorf("Couldn't deserialize")
 	}
