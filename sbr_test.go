@@ -29,6 +29,7 @@ func TestMovielens100K(t *testing.T) {
 
 	fmt.Printf("Train len %v, test len %v\n", train.Len(), test.Len())
 
+	fmt.Println("Building model...")
 	model := NewImplicitLSTMModel(data.NumItems())
 
 	// Set the hyperparameters.
@@ -48,11 +49,13 @@ func TestMovielens100K(t *testing.T) {
 	}
 	model.RandomSeed = randomSeed
 
+	fmt.Println("Fitting...")
 	loss, err := model.Fit(&train)
 	if err != nil {
 		panic(err)
 	}
 
+	fmt.Println("Evaluating...")
 	mrr, err := model.MRRScore(&test)
 	if err != nil {
 		panic(err)
@@ -64,6 +67,7 @@ func TestMovielens100K(t *testing.T) {
 		t.Errorf("MRR smaller than %v", expectedMrr)
 	}
 
+	fmt.Println("Predicting...")
 	predictions, err := model.Predict([]int{1, 2, 3}, []int{100, 200, 300, 400})
 	if err != nil {
 		t.Errorf("Failed predictions %v", err)
@@ -72,22 +76,26 @@ func TestMovielens100K(t *testing.T) {
 		t.Errorf("Got wrong number of predictions")
 	}
 
+	fmt.Println("Testing predict bounds checks...")
 	predictions, err = model.Predict([]int{1, 2, 3}, []int{100, 200, 300, 400, 10000})
 	if err == nil {
 		t.Errorf("Should have errored with items out of range.")
 	}
 
+	fmt.Println("Serializing...")
 	serialized, err := model.MarshalBinary()
 	if err != nil {
 		t.Errorf("Couldn't serialize %v", err)
 	}
 
+	fmt.Println("Deserializing...")
 	deserializedModel := &ImplicitLSTMModel{}
 	err = deserializedModel.UnmarshalBinary(serialized)
 	if err != nil {
 		t.Errorf("Couldn't deserialize")
 	}
 
+	fmt.Println("Evaluating deserialized model...")
 	mrr, err = deserializedModel.MRRScore(&test)
 	if err != nil {
 		panic(err)
@@ -98,6 +106,7 @@ func TestMovielens100K(t *testing.T) {
 		t.Errorf("MRR smaller than %v", expectedMrr)
 	}
 
+	fmt.Println("Testing model copies...")
 	// Make a copy of the model, and free the model in the first model.
 	// Make sure that using the model on the copy does not segfault, and
 	// is handled correctly.

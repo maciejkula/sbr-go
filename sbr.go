@@ -3,6 +3,63 @@
 // Sbr implements cutting-edge sequence-based recommenders: for every user, we examine what
 // they have interacted up to now to predict what they are going to consume next.
 //
+//
+// Usage
+//
+// You can fit a model on the Movielens 100K dataset in about 10 seconds using the following
+// (taken from https://github.com/maciejkula/sbr-go/blob/master/examples/movielens/main.go):
+//
+//  import (
+//	 "fmt"
+//	 "math/rand"
+//
+// 	 sbr "github.com/maciejkula/sbr-go"
+//  )
+//
+//  data, err := sbr.GetMovielens()
+//  if err != nil {
+//      panic(err)
+//  }
+//  fmt.Printf("Loaded movielens data: %v users and %v items for a total of %v interactions\n",
+//      data.NumUsers(), data.NumItems(), data.Len())
+//
+//  // Split into test and train.
+//  rng := rand.New(rand.NewSource(42))
+//  train, test := sbr.TrainTestSplit(data, 0.2, rng)
+//  fmt.Printf("Train len %v, test len %v\n", train.Len(), test.Len())
+//
+//  // Instantiate the model.
+//  model := sbr.NewImplicitLSTMModel(train.NumItems())
+//
+//  // Set the hyperparameters.
+//  model.ItemEmbeddingDim = 32
+//  model.LearningRate = 0.16
+//  model.L2Penalty = 0.0004
+//  model.NumEpochs = 10
+//  model.NumThreads = 1
+//
+//  // Set random seed
+//  var randomSeed [16]byte
+//  for idx := range randomSeed {
+//      randomSeed[idx] = 42
+//  }
+//  model.RandomSeed = randomSeed
+//
+//  // Fit the model.
+//  fmt.Printf("Fitting the model...\n")
+//  loss, err := model.Fit(&train)
+//  if err != nil {
+//      panic(err)
+//  }
+//
+//  // And evaluate.
+//  fmt.Printf("Evaluating the model...\n")
+//  mrr, err := model.MRRScore(&test)
+//  if err != nil {
+//      panic(err)
+//  }
+//  fmt.Printf("Loss %v, MRR: %v\n", loss, mrr)
+//
 // Installation requirements
 //
 // You will need the Rust compiler. You can install Rust from https://www.rust-lang.org/en-US/install.html by running
@@ -298,6 +355,13 @@ func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 			loss = C.Hinge
 		}
 
+		var coupled int
+		if self.Coupled {
+			coupled = 1
+		} else {
+			coupled = 0
+		}
+
 		hyper := C.LSTMHyperparameters{
 			num_items:           C.size_t(self.NumItems),
 			max_sequence_length: C.size_t(self.MaxSequenceLength),
@@ -306,7 +370,7 @@ func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 			l2_penalty:          C.float(self.L2Penalty),
 			loss:                loss,
 			optimizer:           optimizer,
-			coupled:             C.bool(self.Coupled),
+			coupled:             C.size_t(coupled),
 			num_threads:         C.size_t(self.NumThreads),
 			num_epochs:          C.size_t(self.NumEpochs),
 			random_seed:         seed,
