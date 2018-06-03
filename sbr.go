@@ -355,6 +355,13 @@ func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 			loss = C.Hinge
 		}
 
+		var coupled int
+		if self.Coupled {
+			coupled = 1
+		} else {
+			coupled = 0
+		}
+
 		hyper := C.LSTMHyperparameters{
 			num_items:           C.size_t(self.NumItems),
 			max_sequence_length: C.size_t(self.MaxSequenceLength),
@@ -363,7 +370,7 @@ func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 			l2_penalty:          C.float(self.L2Penalty),
 			loss:                loss,
 			optimizer:           optimizer,
-			coupled:             C.bool(self.Coupled),
+			coupled:             C.size_t(coupled),
 			num_threads:         C.size_t(self.NumThreads),
 			num_epochs:          C.size_t(self.NumEpochs),
 			random_seed:         seed,
