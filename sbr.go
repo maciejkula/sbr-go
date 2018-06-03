@@ -46,9 +46,13 @@ type Loss int
 type Optimizer int
 
 const (
-	BPR     Loss      = 0
-	Hinge   Loss      = 1
-	Adam    Optimizer = 0
+	// Bayesian personalised ranking loss.
+	BPR Loss = 0
+	// Pairwise hinge loss.
+	Hinge Loss = 1
+	// ADAM optimizer.
+	Adam Optimizer = 0
+	// Adagrad optimizer.
 	Adagrad Optimizer = 1
 )
 
@@ -182,16 +186,35 @@ func TrainTestSplit(data *Interactions, testFraction float64, rng *rand.Rand) (I
 
 // An implicit-feedback LSTM-based sequence model.
 type ImplicitLSTMModel struct {
-	NumItems          int
+	// Number of items in the model.
+	NumItems int
+	// Maximum sequence length to consider. Setting
+	// this to lower values will yield models that
+	// are faster to train and evaluate, but have
+	// a shorter memory.
 	MaxSequenceLength int
-	ItemEmbeddingDim  int
-	LearningRate      float32
-	L2Penalty         float32
-	NumThreads        int
-	NumEpochs         int
-	Loss              Loss
-	Optimizer         Optimizer
-	RandomSeed        [16]byte
+	// Dimension of item embeddings. Setting this to
+	// higher values will yield models that are slower
+	// to fit but are potentially more expressive (at
+	// the risk of overfitting).
+	ItemEmbeddingDim int
+	// Initial learning rate.
+	LearningRate float32
+	// L2 penalty.
+	L2Penalty float32
+	// Whether the LSTM should use coupled forget and update
+	// gates, yielding a model that's faster to train.
+	Coupled bool
+	// Number of threads to use for training.
+	NumThreads int
+	// Number of epochs to use for training. To run more epochs,
+	// call the fit method multiple times.
+	NumEpochs int
+	// Type of loss function to use.
+	Loss Loss
+	// Optimizer to use.
+	Optimizer  Optimizer
+	RandomSeed [16]byte
 	// We use a double indirection scheme here to make
 	// sure that if a copy of the model struct is created,
 	// calling Free() on _any_ of the instances marks the
@@ -225,6 +248,7 @@ func NewImplicitLSTMModel(numItems int) *ImplicitLSTMModel {
 		Optimizer:         Adagrad,
 		LearningRate:      0.01,
 		L2Penalty:         0.0,
+		Coupled:           true,
 		NumThreads:        1,
 		NumEpochs:         10,
 	}
@@ -282,6 +306,7 @@ func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 			l2_penalty:          C.float(self.L2Penalty),
 			loss:                loss,
 			optimizer:           optimizer,
+			coupled:             C.bool(self.Coupled),
 			num_threads:         C.size_t(self.NumThreads),
 			num_epochs:          C.size_t(self.NumEpochs),
 			random_seed:         seed,
