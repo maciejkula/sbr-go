@@ -33,6 +33,10 @@ package sbr
 */
 import "C"
 import (
+	"bytes"
+	"encoding"
+	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"unsafe"
@@ -195,6 +199,10 @@ type ImplicitLSTMModel struct {
 	// we would have objects referencing a dead C pointer.
 	model **C.ImplicitLSTMModelPointer
 }
+
+// The model satisfies the BinaryMarshaler and BinaryUnmarshaler interfaces.
+var _ encoding.BinaryMarshaler = &ImplicitLSTMModel{}
+var _ encoding.BinaryUnmarshaler = &ImplicitLSTMModel{}
 
 // Build a new model with a capacity to represent a certain number of items.
 // In order to avoid leaking memory, the model must be freed usint its Free
@@ -383,37 +391,82 @@ func (self *ImplicitLSTMModel) MRRScore(data *Interactions) (float32, error) {
 	return float32(*result.value), nil
 }
 
-/// Serialize the underlying model into a byte array.
-func (self *ImplicitLSTMModel) Serialize() ([]byte, error) {
-	if !self.isTrained() {
-		return nil, fmt.Errorf("Model has to be fit first.")
-	}
-
-	size := C.implicit_lstm_get_serialized_size(*self.model)
-
-	out := make([]byte, size)
-	err := C.implicit_lstm_serialize(*self.model,
-		(*C.uchar)(unsafe.Pointer(&out[0])),
-		C.size_t(len(out)))
-
-	if err != nil {
-		return nil, fmt.Errorf(C.GoString(err))
-	}
-
-	return out, nil
+type marshalled struct {
+	Hyperparameters []byte
+	Model           []byte
 }
 
-// Restore the model from a byte array.
-func (self *ImplicitLSTMModel) Deserialize(data []byte) error {
-	result := C.implicit_lstm_deserialize(
-		(*C.uchar)(unsafe.Pointer(&data[0])),
-		C.size_t(len(data)))
+// Serialize the model into a byte array. Satisfies the encoding.BinaryMarshaler
+// interface.
+func (self *ImplicitLSTMModel) MarshalBinary() ([]byte, error) {
 
-	if result.error != nil {
-		return fmt.Errorf(C.GoString(result.error))
+	hyperparameters, err := json.Marshal(self)
+	if err != nil {
+		return nil, err
 	}
 
-	self.model = &result.value
+	var model []byte
+
+	if !self.isTrained() {
+		model = make([]byte, 0)
+	} else {
+		size := C.implicit_lstm_get_serialized_size(*self.model)
+
+		model = make([]byte, size)
+		err := C.implicit_lstm_serialize(*self.model,
+			(*C.uchar)(unsafe.Pointer(&model[0])),
+			C.size_t(len(model)))
+
+		if err != nil {
+			return nil, fmt.Errorf(C.GoString(err))
+		}
+	}
+
+	marshalledModel := marshalled{
+		Hyperparameters: hyperparameters,
+		Model:           model,
+	}
+
+	var out bytes.Buffer
+	encoder := gob.NewEncoder(&out)
+	err = encoder.Encode(&marshalledModel)
+	if err != nil {
+		return nil, err
+	}
+
+	return out.Bytes(), nil
+}
+
+// Deserialize the model from a byte array. Satisfies the encoding.BinaryUnmarshaler
+// interface.
+func (self *ImplicitLSTMModel) UnmarshalBinary(data []byte) error {
+	reader := bytes.NewBuffer(data)
+	decoder := gob.NewDecoder(reader)
+
+	marshalledModel := marshalled{}
+	err := decoder.Decode(&marshalledModel)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(marshalledModel.Hyperparameters, self)
+	if err != nil {
+		return err
+	}
+
+	if len(marshalledModel.Model) > 0 {
+		data := marshalledModel.Model
+
+		result := C.implicit_lstm_deserialize(
+			(*C.uchar)(unsafe.Pointer(&data[0])),
+			C.size_t(len(data)))
+
+		if result.error != nil {
+			return fmt.Errorf(C.GoString(result.error))
+		}
+
+		self.model = &result.value
+	}
 
 	return nil
 }

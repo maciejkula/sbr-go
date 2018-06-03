@@ -1,7 +1,6 @@
 package sbr
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -77,16 +76,13 @@ func TestMovielens100K(t *testing.T) {
 		t.Errorf("Should have errored with items out of range.")
 	}
 
-	serialized, err := model.Serialize()
+	serialized, err := model.MarshalBinary()
 	if err != nil {
 		t.Errorf("Couldn't serialize %v", err)
 	}
 
 	deserializedModel := &ImplicitLSTMModel{}
-	modelJson, _ := json.Marshal(model)
-	_ = json.Unmarshal(modelJson, deserializedModel)
-
-	err = deserializedModel.Deserialize(serialized)
+	err = deserializedModel.UnmarshalBinary(serialized)
 	if err != nil {
 		t.Errorf("Couldn't deserialize")
 	}
