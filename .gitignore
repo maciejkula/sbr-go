@@ -3,3 +3,6 @@
 *.a
 *.d
 lib
+/build/build
+/sbr-go.test
+/examples/movielens/movielens

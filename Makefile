@@ -1,3 +1,3 @@
 all:
-	python build.py
+	cd build && go build && ./build && mv lib ../
 
