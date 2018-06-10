@@ -34,7 +34,7 @@ func download() error {
 		archiveFilename = "linux/sse/libsbr_sys.a"
 	} else if runtime.GOOS == "darwin" {
 		url += DARWIN_URL
-		archiveFilename = "darwin/sse/libsbr_sys.dylib"
+		archiveFilename = "darwin/sse/libsbr_sys.a"
 	} else {
 		return fmt.Errorf("Unsupported OS: %v", runtime.GOOS)
 	}
@@ -73,14 +73,18 @@ func download() error {
 		return err
 	}
 
-	destinationPath := path.Join("lib", "libsbr_sys.a")
+	destinationPath := path.Join("lib", path.Base(archiveFilename))
 	destination, err := os.Create(destinationPath)
 	if err != nil {
 		return err
 	}
 	defer destination.Close()
 
+	fileNames := make([]string, 0)
+
 	for _, file := range archive.File {
+
+		fileNames = append(fileNames, file.FileHeader.Name)
 
 		if file.FileHeader.Name == archiveFilename {
 			archiveFile, err := file.Open()
@@ -97,7 +101,8 @@ func download() error {
 		}
 	}
 
-	return nil
+	return fmt.Errorf("Release binary not found in downloaded archive: %v not in %v",
+		archiveFilename, fileNames)
 }
 
 func main() {

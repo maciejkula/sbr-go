@@ -1,3 +1,3 @@
 all:
-	cd build && go build && ./build && mv lib ../
+	cd build && go build && ./build && cp -r lib ../
 
