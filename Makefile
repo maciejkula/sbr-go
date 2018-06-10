@@ -1,3 +1,3 @@
 all:
-	python3 build.py
+	python build.py
 
