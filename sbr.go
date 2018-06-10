@@ -83,7 +83,8 @@ package sbr
 //go:generate make all
 
 /*
-#cgo LDFLAGS: -L${SRCDIR}/lib -lsbr_sys -Wl,-rpath,'${SRCDIR}/lib'
+#cgo linux LDFLAGS: -L${SRCDIR}/lib -lsbr_sys
+#cgo darwin LDFLAGS: -framework Security -L${SRCDIR}/lib -lsbr_sys
 #include <sys/types.h>
 #include <stdlib.h>
 #include <sbr-sys/bindings.h>
