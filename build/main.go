@@ -33,8 +33,8 @@ func download() error {
 		url += LINUX_URL
 		archiveFilename = "linux/sse/libsbr_sys.a"
 	} else if runtime.GOOS == "darwin" {
-		url += DARWIN_URL
-		archiveFilename = "darwin/sse/libsbr_sys.a"
+		url += LINUX_URL
+		archiveFilename = "linux/sse/libsbr_sys.a"
 	} else {
 		return fmt.Errorf("Unsupported OS: %v", runtime.GOOS)
 	}
