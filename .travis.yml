@@ -14,11 +14,6 @@ addons:
     packages:
       - gfortran
 
-before_install:
-  - curl https://sh.rustup.rs -sSf | sh -s -- -y
-  - export PATH=$HOME/.cargo/bin:$PATH
-  - cargo --version
-
 install:
   - go generate
   - export CGO_LDFLAGS_ALLOW="-Wl*"
