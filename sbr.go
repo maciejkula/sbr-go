@@ -67,8 +67,7 @@
 // followed by
 //  make
 // in the installation directory. This wil download the package's native dependencies.
-// The resulting libraries (in ./lib) must be available and in the dylib loading
-// path at runtime.
+// On both OSX and Linux, the resulting binaries are fully statically linked, and you can deploy them like any other Go binary.
 package sbr
 
 /*

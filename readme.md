@@ -63,6 +63,6 @@ followed by
 ```
 make
 ```
-in the installation directory. This wil download the package's native dependencies.
-On OSX, the resulting libraries (in `./lib`) must be available and in the dylib loading
-path at runtime.
+in the installation directory. This wil download the package's native dependencies. On both OSX and Linux, the resulting binaries are fully statically linked, and you can deploy them like any other Go binary.
+
+If you prefer to build the dependencies from source, run `make source` instead.
