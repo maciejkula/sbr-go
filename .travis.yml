@@ -9,14 +9,8 @@ language: go
 go:
   - "1.10"
 
-addons:
-  apt:
-    packages:
-      - gfortran
-
 install:
   - make
-  - export CGO_LDFLAGS_ALLOW="-Wl*"
 
 script:
   - go test
