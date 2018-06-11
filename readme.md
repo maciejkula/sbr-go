@@ -54,14 +54,6 @@ You can fit a model on the Movielens 100K dataset in about 10 seconds using the 
 	}
 	fmt.Printf("Loss %v, MRR: %v\n", loss, mrr)
 ```
-
-## Installation requirements
-
-You will need the Rust compiler. You can install Rust from [here](https://www.rust-lang.org/en-US/install.html) by running
-```
-curl https://sh.rustup.rs -sSf | sh
-```
-
 ## Installation
 Run
 ```
@@ -71,12 +63,6 @@ followed by
 ```
 make
 ```
-in the installation directory. This wil compile the package's native dependencies.
-The resulting libraries (in `./lib`) must be available and in the dylib loading
+in the installation directory. This wil download the package's native dependencies.
+On OSX, the resulting libraries (in `./lib`) must be available and in the dylib loading
 path at runtime.
-
-You may have to set
-```
-export CGO_LDFLAGS_ALLOW="-Wl*"
-```
-depending on your Go version.

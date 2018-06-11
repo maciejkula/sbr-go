@@ -15,10 +15,8 @@ addons:
       - gfortran
 
 install:
-  - go generate
+  - make
   - export CGO_LDFLAGS_ALLOW="-Wl*"
 
 script:
-  - go build
-  - ls lib
-  - MKL_CBWR=SSE4_1 go test
+  - go test

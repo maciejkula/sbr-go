@@ -10,11 +10,26 @@ import (
 	"os"
 	"path"
 	"runtime"
+
+	"github.com/intel-go/cpuid"
 )
 
-const BASE_URL = "https://github.com/maciejkula/sbr-sys/releases/download/"
-const LINUX_URL = "untagged-8b9d185393b92ca20ccb/libsbr_linux.zip"
-const DARWIN_URL = "untagged-8438cacd506366a30457/libsbr_darwin.zip"
+const BASE_URL = "https://github.com/maciejkula/sbr-sys/releases/download/v0.2.0/"
+
+const SSE = "sse"
+const AVX = "avx"
+const AVX2 = "avx2"
+
+func getSIMDCapability() string {
+	if cpuid.HasExtendedFeature(cpuid.AVX2) {
+		return AVX2
+	}
+	if cpuid.HasFeature(cpuid.AVX) {
+		return AVX
+	}
+
+	return SSE
+}
 
 func download() error {
 	tempDir, err := ioutil.TempDir("", "sbr-go")
@@ -26,20 +41,23 @@ func download() error {
 	tempFileName := "sbd_dist.zip"
 	tempFilePath := path.Join(tempDir, tempFileName)
 
+	capability := getSIMDCapability()
+
 	url := BASE_URL
 	var archiveFilename string
 
 	if runtime.GOOS == "linux" {
-		url += LINUX_URL
-		archiveFilename = "linux/sse/libsbr_sys.a"
+		url += fmt.Sprintf("linux_%v_libsbr_sys.a.zip", capability)
+		archiveFilename = "libsbr_sys.a"
 	} else if runtime.GOOS == "darwin" {
-		url += DARWIN_URL
-		archiveFilename = "darwin/sse/libsbr_sys.a"
+		url += fmt.Sprintf("darwin_%v_libsbr_sys.a.zip", capability)
+		archiveFilename = "libsbr_sys.a"
 	} else {
 		return fmt.Errorf("Unsupported OS: %v", runtime.GOOS)
 	}
 
 	// Get the data
+	fmt.Println("Downloading binary distribution...")
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
@@ -73,6 +91,7 @@ func download() error {
 		return err
 	}
 
+	fmt.Println("Unpacking archive...")
 	destinationPath := path.Join("lib", path.Base(archiveFilename))
 	destination, err := os.Create(destinationPath)
 	if err != nil {
@@ -97,7 +116,9 @@ func download() error {
 				return err
 			}
 
+			fmt.Println("Done.")
 			defer archiveFile.Close()
+			return nil
 		}
 	}
 
@@ -106,5 +127,8 @@ func download() error {
 }
 
 func main() {
-	download()
+	err := download()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
