@@ -60,30 +60,19 @@
 //  }
 //  fmt.Printf("Loss %v, MRR: %v\n", loss, mrr)
 //
-// Installation requirements
-//
-// You will need the Rust compiler. You can install Rust from https://www.rust-lang.org/en-US/install.html by running
-//  curl https://sh.rustup.rs -sSf | sh
-//
 // Installation
 //
 // Run
 //  go get github.com/maciejkula/sbr-go
 // followed by
 //  make
-// in the installation directory. This wil compile the package's native dependencies.
-// The resulting libraries (in ./lib) must be available and in the dylib loading
-// path at runtime.
-//
-// You may have to set
-//  export CGO_LDFLAGS_ALLOW="-Wl*"
-// depending on your Go version.
+// in the installation directory. This wil download the package's native dependencies.
+// On both OSX and Linux, the resulting binaries are fully statically linked, and you can deploy them like any other Go binary.
 package sbr
 
-//go:generate make all
-
 /*
-#cgo LDFLAGS: -L${SRCDIR}/lib -lsbr_sys -Wl,-rpath,'${SRCDIR}/lib'
+#cgo linux LDFLAGS: -L${SRCDIR}/lib -lsbr_sys -lm -ldl
+#cgo darwin LDFLAGS: -framework Security -L${SRCDIR}/lib -lsbr_sys -lm -ldl
 #include <sys/types.h>
 #include <stdlib.h>
 #include <sbr-sys/bindings.h>
@@ -91,6 +80,8 @@ package sbr
 import "C"
 import (
 	"bytes"
+	"os"
+
 	"encoding"
 	"encoding/gob"
 	"encoding/json"
@@ -112,6 +103,11 @@ const (
 	// Adagrad optimizer.
 	Adagrad Optimizer = 1
 )
+
+// Make sure we allow BLAS calls from multiple threads.
+func init() {
+	os.Setenv("OPENBLAS_MAIN_FREE", "1")
+}
 
 // Helper for translating user and item ids into contiguous indices.
 type Indexer struct {

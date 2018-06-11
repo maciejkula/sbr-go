@@ -1,7 +1,7 @@
 matrix:
   include:
     - os: linux
-      dist: trusty
+      dist: xenial
       sudo: required
     - os: osx
 
@@ -9,20 +9,8 @@ language: go
 go:
   - "1.10"
 
-addons:
-  apt:
-    packages:
-      - gfortran
-
-before_install:
-  - curl https://sh.rustup.rs -sSf | sh -s -- -y
-  - export PATH=$HOME/.cargo/bin:$PATH
-  - cargo --version
-
 install:
-  - go generate
-  - export CGO_LDFLAGS_ALLOW="-Wl*"
+  - make
 
 script:
-  - go build
-  - MKL_CBWR=SSE4_1 go test
+  - go test

@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"os"
 	"testing"
+	"time"
 )
 
 func expectedMRR() float32 {
@@ -50,10 +51,12 @@ func TestMovielens100K(t *testing.T) {
 	model.RandomSeed = randomSeed
 
 	fmt.Println("Fitting...")
+	start := time.Now()
 	loss, err := model.Fit(&train)
 	if err != nil {
 		panic(err)
 	}
+	fmt.Printf("Finished fitting in %v.\n", time.Since(start))
 
 	fmt.Println("Evaluating...")
 	mrr, err := model.MRRScore(&test)
