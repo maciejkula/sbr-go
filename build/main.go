@@ -16,15 +16,14 @@ import (
 	"github.com/schollz/progressbar"
 )
 
-const BASE_URL = "https://github.com/maciejkula/sbr-sys/releases/download/v0.2.0/"
+const BASE_URL = "https://github.com/maciejkula/sbr-sys/releases/download/v0.3.1/"
 
 const SSE = "sse"
 const AVX = "avx"
-const AVX2 = "avx2"
 
 func getSIMDCapability() string {
 	if cpuid.HasExtendedFeature(cpuid.AVX2) {
-		return AVX2
+		return AVX
 	}
 	if cpuid.HasFeature(cpuid.AVX) {
 		return AVX
@@ -52,10 +51,6 @@ func download() error {
 		url += fmt.Sprintf("linux_%v_libsbr_sys.a.zip", capability)
 		archiveFilename = "libsbr_sys.a"
 	} else if runtime.GOOS == "darwin" {
-		if capability == "avx2" {
-			// We don't build AVX2 binaries for darwin.
-			capability = "avx"
-		}
 		url += fmt.Sprintf("darwin_%v_libsbr_sys.a.zip", capability)
 		archiveFilename = "libsbr_sys.a"
 	} else {
