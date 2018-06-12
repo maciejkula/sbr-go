@@ -15,6 +15,8 @@ endif
 
 # Use pre-built binaries.
 all:
+	git submodule init
+	git submodule update
 	cd build && go build && ./build && cp -r lib ../
 
 # Build everything from source.
