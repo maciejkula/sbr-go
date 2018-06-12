@@ -52,6 +52,10 @@ func download() error {
 		url += fmt.Sprintf("linux_%v_libsbr_sys.a.zip", capability)
 		archiveFilename = "libsbr_sys.a"
 	} else if runtime.GOOS == "darwin" {
+		if capability == "avx2" {
+			// We don't build AVX2 binaries for darwin.
+			capability = "avx"
+		}
 		url += fmt.Sprintf("darwin_%v_libsbr_sys.a.zip", capability)
 		archiveFilename = "libsbr_sys.a"
 	} else {
