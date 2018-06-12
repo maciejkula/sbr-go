@@ -72,7 +72,7 @@ package sbr
 
 /*
 #cgo linux LDFLAGS: -L${SRCDIR}/lib -lsbr_sys -lm -ldl
-#cgo darwin LDFLAGS: -framework Security -L${SRCDIR}/lib -lsbr_sys -lm -ldl
+#cgo darwin LDFLAGS: -framework Security -framework Accelerate -L${SRCDIR}/lib -lsbr_sys -lm -ldl
 #include <sys/types.h>
 #include <stdlib.h>
 #include <sbr-sys/bindings.h>

@@ -16,7 +16,7 @@ import (
 	"github.com/schollz/progressbar"
 )
 
-const BASE_URL = "https://github.com/maciejkula/sbr-sys/releases/download/v0.2.0/"
+const BASE_URL = "https://github.com/maciejkula/sbr-sys/releases/download/untagged-64044cc70d18028ef7e0/"
 
 const SSE = "sse"
 const AVX = "avx"
