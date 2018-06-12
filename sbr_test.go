@@ -3,19 +3,18 @@ package sbr
 import (
 	"fmt"
 	"math/rand"
-	"os"
+	"runtime"
 	"testing"
 	"time"
 )
 
 func expectedMRR() float32 {
-	switch simd := os.Getenv("MKL_CBWR"); simd {
-	case "SSE4_1":
-		return 0.082
-	case "AVX":
-		return 0.083
-	default:
+	if runtime.GOOS == "linux" {
+		// OpenBLAS build.
 		return 0.07
+	} else {
+		// Accelerate build.
+		return 0.068
 	}
 }
 
