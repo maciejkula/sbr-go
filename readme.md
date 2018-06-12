@@ -4,7 +4,7 @@
 
 A recommender system package for Go.
 
-Sbr implements state-of-the-art sequence-based models, using the history of what a user has liked to suggest new items. As a result, it makes accurate prediction that can be updated in real-time in response to user actions without model re-training.
+Sbr implements state-of-the-art sequence-based models, using the history of what a user has liked to suggest new items. As a result, it makes accurate predictions that can be updated in real-time in response to user actions without model re-training.
 
 ## Usage
 You can fit a model on the Movielens 100K dataset in about 10 seconds using the following code:
@@ -63,6 +63,6 @@ followed by
 ```
 make
 ```
-in the installation directory. This wil download the package's native dependencies. On both OSX and Linux, the resulting binaries are fully statically linked, and you can deploy them like any other Go binary.
+in the installation directory. This will download the package's native dependencies. On both OSX and Linux, the resulting binaries are fully statically linked, and you can deploy them like any other Go binary.
 
 If you prefer to build the dependencies from source, run `make source` instead.
