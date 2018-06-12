@@ -10,8 +10,10 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strconv"
 
 	"github.com/intel-go/cpuid"
+	"github.com/schollz/progressbar"
 )
 
 const BASE_URL = "https://github.com/maciejkula/sbr-sys/releases/download/v0.2.0/"
@@ -76,9 +78,19 @@ func download() error {
 	}
 
 	// Writer the body to file
-	_, err = io.Copy(out, resp.Body)
+	size, err := strconv.Atoi(resp.Header.Get("Content-Length"))
 	if err != nil {
 		return err
+	}
+	chunkSize := 256 * 1024
+	bar := progressbar.New(size / chunkSize)
+
+	for err != io.EOF {
+		_, err = io.CopyN(out, resp.Body, int64(chunkSize))
+		if err != nil && err != io.EOF {
+			return err
+		}
+		bar.Add(1)
 	}
 	out.Close()
 
