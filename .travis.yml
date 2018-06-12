@@ -13,4 +13,4 @@ install:
   - make
 
 script:
-  - OPENBLAS_CORETYPE=Sandybridge go test
+  - go test

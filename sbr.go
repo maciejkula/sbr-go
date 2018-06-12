@@ -98,6 +98,10 @@ const (
 	BPR Loss = 0
 	// Pairwise hinge loss.
 	Hinge Loss = 1
+	// WARP loss. More accurate in most cases than
+	// the other loss functions at the expense of
+	// fitting speed.
+	WARP Loss = 2
 	// ADAM optimizer.
 	Adam Optimizer = 0
 	// Adagrad optimizer.
@@ -347,8 +351,10 @@ func (self *ImplicitLSTMModel) Fit(data *Interactions) (float32, error) {
 
 		if self.Loss == BPR {
 			loss = C.BPR
-		} else {
+		} else if self.Loss == Hinge {
 			loss = C.Hinge
+		} else {
+			loss = C.WARP
 		}
 
 		var coupled int
