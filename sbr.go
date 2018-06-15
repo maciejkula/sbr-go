@@ -80,7 +80,6 @@ package sbr
 import "C"
 import (
 	"bytes"
-	"os"
 
 	"encoding"
 	"encoding/gob"
@@ -107,11 +106,6 @@ const (
 	// Adagrad optimizer.
 	Adagrad Optimizer = 1
 )
-
-// Make sure we allow BLAS calls from multiple threads.
-func init() {
-	os.Setenv("OPENBLAS_MAIN_FREE", "1")
-}
 
 // Helper for translating user and item ids into contiguous indices.
 type Indexer struct {

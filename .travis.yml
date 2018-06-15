@@ -13,4 +13,4 @@ install:
   - make
 
 script:
-  - go test
+  - go test -v
