@@ -177,3 +177,22 @@ func TestWARP(t *testing.T) {
 
 	runTest(t, model, &train, &test, expectedMRR)
 }
+
+func TestDeallocation(t *testing.T) {
+	numItems := 1000000
+	data := NewInteractions(1, numItems)
+
+	for i := 0; i < 1000; i++ {
+		data.Append(0, i, i)
+	}
+
+	for i := 0; i < 100; i++ {
+		model := NewImplicitLSTMModel(numItems)
+		_, err := model.Fit(&data)
+		if err != nil {
+			t.Errorf("Can't fit: %v", err)
+		}
+
+		runtime.GC()
+	}
+}

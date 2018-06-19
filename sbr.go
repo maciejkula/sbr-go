@@ -80,6 +80,7 @@ package sbr
 import "C"
 import (
 	"bytes"
+	"runtime"
 
 	"encoding"
 	"encoding/gob"
@@ -190,6 +191,11 @@ func (self *Interactions) Len() int {
 }
 
 func (self *Interactions) toFFI() (*C.InteractionsPointer, error) {
+
+	if len(self.users) == 0 || len(self.items) == 0 || len(self.timestamps) == 0 {
+		return nil, fmt.Errorf("Interactions are empty.")
+	}
+
 	result := C.interactions_new(C.size_t(self.numUsers),
 		C.size_t(self.numItems),
 		C.size_t(len(self.users)),
@@ -304,7 +310,13 @@ func NewImplicitLSTMModel(numItems int) *ImplicitLSTMModel {
 		NumEpochs:         10,
 	}
 
+	runtime.SetFinalizer(model, freeImplicitLSTMModel)
+
 	return model
+}
+
+func freeImplicitLSTMModel(model *ImplicitLSTMModel) {
+	model.Free()
 }
 
 func (self *ImplicitLSTMModel) isTrained() bool {
