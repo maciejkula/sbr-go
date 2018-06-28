@@ -6,6 +6,18 @@ A recommender system package for Go.
 
 Sbr implements state-of-the-art sequence-based models, using the history of what a user has liked to suggest new items. As a result, it makes accurate prediction that can be updated in real-time in response to user actions without model re-training.
 
+Sbr implements cutting-edge sequence-based recommenders: for every user, we examine what
+they have interacted up to now to predict what they are going to consume next.
+
+Implemented models:
+- LSTM: a model that uses an LSTM network over the sequence of a user's interaction
+        to predict their next action;
+- EWMA: a model that uses a simpler exponentially-weighted average of past actions
+        to predict future interactions.
+
+Which model performs the best will depend on your dataset. The EWMA model is much
+quicker to fit, and will probably be a good starting point.
+
 ## Usage
 You can fit a model on the Movielens 100K dataset in about 10 seconds using the following code:
 ```go

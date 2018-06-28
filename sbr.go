@@ -3,6 +3,14 @@
 // Sbr implements cutting-edge sequence-based recommenders: for every user, we examine what
 // they have interacted up to now to predict what they are going to consume next.
 //
+// Implemented models:
+// - LSTM: a model that uses an LSTM network over the sequence of a user's interaction
+//         to predict their next action;
+// - EWMA: a model that uses a simpler exponentially-weighted average of past actions
+//         to predict future interactions.
+//
+// Which model performs the best will depend on your dataset. The EWMA model is much
+// quicker to fit, and will probably be a good starting point.
 //
 // Usage
 //
@@ -586,9 +594,6 @@ type ImplicitEWMAModel struct {
 	LearningRate float32
 	// L2 penalty.
 	L2Penalty float32
-	// Whether the EWMA should use coupled forget and update
-	// gates, yielding a model that's faster to train.
-	Coupled bool
 	// Number of threads to use for training.
 	NumThreads int
 	// Number of epochs to use for training. To run more epochs,
@@ -632,7 +637,6 @@ func NewImplicitEWMAModel(numItems int) *ImplicitEWMAModel {
 		Optimizer:         Adagrad,
 		LearningRate:      0.01,
 		L2Penalty:         0.0,
-		Coupled:           true,
 		NumThreads:        1,
 		NumEpochs:         10,
 	}
@@ -657,7 +661,7 @@ func (self *ImplicitEWMAModel) isTrained() bool {
 // freeing a model used from multiple goroutines.
 func (self *ImplicitEWMAModel) Free() {
 	if self.isTrained() {
-		C.implicit_lstm_free(*self.model)
+		C.implicit_ewma_free(*self.model)
 		*self.model = nil
 		self.model = nil
 	}
@@ -690,13 +694,6 @@ func (self *ImplicitEWMAModel) Fit(data *Interactions) (float32, error) {
 			loss = C.WARP
 		}
 
-		var coupled int
-		if self.Coupled {
-			coupled = 1
-		} else {
-			coupled = 0
-		}
-
 		hyper := C.EWMAHyperparameters{
 			num_items:           C.size_t(self.NumItems),
 			max_sequence_length: C.size_t(self.MaxSequenceLength),
@@ -705,12 +702,11 @@ func (self *ImplicitEWMAModel) Fit(data *Interactions) (float32, error) {
 			l2_penalty:          C.float(self.L2Penalty),
 			loss:                loss,
 			optimizer:           optimizer,
-			coupled:             C.size_t(coupled),
 			num_threads:         C.size_t(self.NumThreads),
 			num_epochs:          C.size_t(self.NumEpochs),
 			random_seed:         seed,
 		}
-		result := C.implicit_lstm_new(hyper)
+		result := C.implicit_ewma_new(hyper)
 
 		if result.error != nil {
 			return 0.0, fmt.Errorf(C.GoString(result.error))
@@ -725,7 +721,7 @@ func (self *ImplicitEWMAModel) Fit(data *Interactions) (float32, error) {
 	}
 	defer C.interactions_free(dataFFI)
 
-	result := C.implicit_lstm_fit(*self.model, dataFFI)
+	result := C.implicit_ewma_fit(*self.model, dataFFI)
 
 	if result.error != nil {
 		return 0.0, fmt.Errorf(C.GoString(result.error))
@@ -772,7 +768,7 @@ func (self *ImplicitEWMAModel) Predict(interactionHistory []int, itemsToScore []
 		items[i] = C.size_t(v)
 	}
 
-	err := C.implicit_lstm_predict(*self.model,
+	err := C.implicit_ewma_predict(*self.model,
 		&history[0],
 		C.size_t(len(history)),
 		&items[0],
@@ -807,7 +803,7 @@ func (self *ImplicitEWMAModel) MRRScore(data *Interactions) (float32, error) {
 	}
 	defer C.interactions_free(dataFFI)
 
-	result := C.implicit_lstm_mrr_score(*self.model, dataFFI)
+	result := C.implicit_ewma_mrr_score(*self.model, dataFFI)
 	if result.error != nil {
 		return 0.0, fmt.Errorf(C.GoString(result.error))
 	}
@@ -834,10 +830,10 @@ func (self *ImplicitEWMAModel) MarshalBinary() ([]byte, error) {
 	if !self.isTrained() {
 		model = make([]byte, 0)
 	} else {
-		size := C.implicit_lstm_get_serialized_size(*self.model)
+		size := C.implicit_ewma_get_serialized_size(*self.model)
 
 		model = make([]byte, size)
-		err := C.implicit_lstm_serialize(*self.model,
+		err := C.implicit_ewma_serialize(*self.model,
 			(*C.uchar)(unsafe.Pointer(&model[0])),
 			C.size_t(len(model)))
 
@@ -881,7 +877,7 @@ func (self *ImplicitEWMAModel) UnmarshalBinary(data []byte) error {
 	if len(marshalledModel.Model) > 0 {
 		data := marshalledModel.Model
 
-		result := C.implicit_lstm_deserialize(
+		result := C.implicit_ewma_deserialize(
 			(*C.uchar)(unsafe.Pointer(&data[0])),
 			C.size_t(len(data)))
 
