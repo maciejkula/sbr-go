@@ -3,6 +3,14 @@
 // Sbr implements cutting-edge sequence-based recommenders: for every user, we examine what
 // they have interacted up to now to predict what they are going to consume next.
 //
+// Implemented models:
+// - LSTM: a model that uses an LSTM network over the sequence of a user's interaction
+//         to predict their next action;
+// - EWMA: a model that uses a simpler exponentially-weighted average of past actions
+//         to predict future interactions.
+//
+// Which model performs the best will depend on your dataset. The EWMA model is much
+// quicker to fit, and will probably be a good starting point.
 //
 // Usage
 //
@@ -488,7 +496,7 @@ func (self *ImplicitLSTMModel) MRRScore(data *Interactions) (float32, error) {
 	return float32(*result.value), nil
 }
 
-type marshalled struct {
+type marshalledImplicitLSTM struct {
 	Hyperparameters []byte
 	Model           []byte
 }
@@ -519,7 +527,7 @@ func (self *ImplicitLSTMModel) MarshalBinary() ([]byte, error) {
 		}
 	}
 
-	marshalledModel := marshalled{
+	marshalledModel := marshalledImplicitLSTM{
 		Hyperparameters: hyperparameters,
 		Model:           model,
 	}
@@ -540,7 +548,7 @@ func (self *ImplicitLSTMModel) UnmarshalBinary(data []byte) error {
 	reader := bytes.NewBuffer(data)
 	decoder := gob.NewDecoder(reader)
 
-	marshalledModel := marshalled{}
+	marshalledModel := marshalledImplicitLSTM{}
 	err := decoder.Decode(&marshalledModel)
 	if err != nil {
 		return err
@@ -555,6 +563,321 @@ func (self *ImplicitLSTMModel) UnmarshalBinary(data []byte) error {
 		data := marshalledModel.Model
 
 		result := C.implicit_lstm_deserialize(
+			(*C.uchar)(unsafe.Pointer(&data[0])),
+			C.size_t(len(data)))
+
+		if result.error != nil {
+			return fmt.Errorf(C.GoString(result.error))
+		}
+
+		self.model = &result.value
+	}
+
+	return nil
+}
+
+// An implicit-feedback EWMA-based sequence model.
+type ImplicitEWMAModel struct {
+	// Number of items in the model.
+	NumItems int
+	// Maximum sequence length to consider. Setting
+	// this to lower values will yield models that
+	// are faster to train and evaluate, but have
+	// a shorter memory.
+	MaxSequenceLength int
+	// Dimension of item embeddings. Setting this to
+	// higher values will yield models that are slower
+	// to fit but are potentially more expressive (at
+	// the risk of overfitting).
+	ItemEmbeddingDim int
+	// Initial learning rate.
+	LearningRate float32
+	// L2 penalty.
+	L2Penalty float32
+	// Number of threads to use for training.
+	NumThreads int
+	// Number of epochs to use for training. To run more epochs,
+	// call the fit method multiple times.
+	NumEpochs int
+	// Type of loss function to use.
+	Loss Loss
+	// Optimizer to use.
+	Optimizer  Optimizer
+	RandomSeed [16]byte
+	// We use a double indirection scheme here to make
+	// sure that if a copy of the model struct is created,
+	// calling Free() on _any_ of the instances marks the
+	// model as freed in _all_ the instances. Otherwise
+	// we would have objects referencing a dead C pointer.
+	model **C.ImplicitEWMAModelPointer
+}
+
+// The model satisfies the BinaryMarshaler and BinaryUnmarshaler interfaces.
+var _ encoding.BinaryMarshaler = &ImplicitEWMAModel{}
+var _ encoding.BinaryUnmarshaler = &ImplicitEWMAModel{}
+
+// Build a new model with a capacity to represent a certain number of items.
+// In order to avoid leaking memory, the model must be freed usint its Free
+// method once no longer in use.
+func NewImplicitEWMAModel(numItems int) *ImplicitEWMAModel {
+
+	seed := make([]byte, 16)
+	rand.Read(seed)
+
+	var randomSeed [16]byte
+	for idx := range randomSeed {
+		randomSeed[idx] = seed[idx]
+	}
+
+	model := &ImplicitEWMAModel{
+		NumItems:          numItems,
+		MaxSequenceLength: 32,
+		ItemEmbeddingDim:  32,
+		Loss:              Hinge,
+		Optimizer:         Adagrad,
+		LearningRate:      0.01,
+		L2Penalty:         0.0,
+		NumThreads:        1,
+		NumEpochs:         10,
+	}
+
+	runtime.SetFinalizer(model, freeImplicitEWMAModel)
+
+	return model
+}
+
+func freeImplicitEWMAModel(model *ImplicitEWMAModel) {
+	model.Free()
+}
+
+func (self *ImplicitEWMAModel) isTrained() bool {
+	return self.model != nil && *self.model != nil
+}
+
+// Free the memory associated with the underlying model.
+//
+// Unlike other methods of the model, calling Free is _not_
+// thread safe. Use an external synchronisation method when
+// freeing a model used from multiple goroutines.
+func (self *ImplicitEWMAModel) Free() {
+	if self.isTrained() {
+		C.implicit_ewma_free(*self.model)
+		*self.model = nil
+		self.model = nil
+	}
+}
+
+// Fit the model on the supplied data, returning the loss value after fitting.
+// Calling this multiple times will resume training.
+func (self *ImplicitEWMAModel) Fit(data *Interactions) (float32, error) {
+	if self.model == nil {
+
+		var seed [16]C.uchar
+		for idx, val := range self.RandomSeed {
+			seed[idx] = C.uchar(val)
+		}
+
+		var loss C.Loss
+		var optimizer C.Optimizer
+
+		if self.Optimizer == Adagrad {
+			optimizer = C.Adagrad
+		} else {
+			optimizer = C.Adam
+		}
+
+		if self.Loss == BPR {
+			loss = C.BPR
+		} else if self.Loss == Hinge {
+			loss = C.Hinge
+		} else {
+			loss = C.WARP
+		}
+
+		hyper := C.EWMAHyperparameters{
+			num_items:           C.size_t(self.NumItems),
+			max_sequence_length: C.size_t(self.MaxSequenceLength),
+			item_embedding_dim:  C.size_t(self.ItemEmbeddingDim),
+			learning_rate:       C.float(self.LearningRate),
+			l2_penalty:          C.float(self.L2Penalty),
+			loss:                loss,
+			optimizer:           optimizer,
+			num_threads:         C.size_t(self.NumThreads),
+			num_epochs:          C.size_t(self.NumEpochs),
+			random_seed:         seed,
+		}
+		result := C.implicit_ewma_new(hyper)
+
+		if result.error != nil {
+			return 0.0, fmt.Errorf(C.GoString(result.error))
+		}
+
+		self.model = &result.value
+	}
+
+	dataFFI, err := data.toFFI()
+	if err != nil {
+		return 0.0, err
+	}
+	defer C.interactions_free(dataFFI)
+
+	result := C.implicit_ewma_fit(*self.model, dataFFI)
+
+	if result.error != nil {
+		return 0.0, fmt.Errorf(C.GoString(result.error))
+	}
+
+	return float32(*result.value), nil
+}
+
+// Make predictions. Provides scores for itemsToScore for a user who has
+// seen interactionHistory items. Items in the history argument should be arranged
+// chronologically, from the earliest seen item to the latest seen item.
+//
+// Returns a slice of scores for the supplied items, where a higher score indicates
+// a better recommendation.
+func (self *ImplicitEWMAModel) Predict(interactionHistory []int, itemsToScore []int) ([]float32, error) {
+
+	if !self.isTrained() {
+		return nil, fmt.Errorf("Model has to be fit first.")
+	}
+
+	if len(interactionHistory) == 0 {
+		return nil, fmt.Errorf("Interaction history must not be empty.")
+	}
+
+	if len(itemsToScore) == 0 {
+		return nil, fmt.Errorf("Items to score must not be empty")
+	}
+
+	history := make([]C.size_t, len(interactionHistory))
+	items := make([]C.size_t, len(itemsToScore))
+	out := make([]C.float, len(itemsToScore))
+
+	for i, v := range interactionHistory {
+		if v >= self.NumItems {
+			return nil, fmt.Errorf("Item ids must be smaller than NumItems")
+		}
+		history[i] = C.size_t(v)
+	}
+
+	for i, v := range itemsToScore {
+		if v >= self.NumItems {
+			return nil, fmt.Errorf("Item ids must be smaller than NumItems")
+		}
+		items[i] = C.size_t(v)
+	}
+
+	err := C.implicit_ewma_predict(*self.model,
+		&history[0],
+		C.size_t(len(history)),
+		&items[0],
+		&out[0],
+		C.size_t(len(out)))
+
+	if err != nil {
+		return nil, fmt.Errorf(C.GoString(err))
+	}
+
+	predictions := make([]float32, len(out))
+	for i, v := range out {
+		predictions[i] = float32(v)
+	}
+
+	return predictions, nil
+}
+
+// Compute the mean reciprocal rank score of the model on supplied interaction data.
+//
+// Higher MRR values reflect better predictive performance of the model. The score
+// is calculated by taking all but the last interactions of all users as their history,
+// then making predictions for the last item they are going to see.
+func (self *ImplicitEWMAModel) MRRScore(data *Interactions) (float32, error) {
+	if !self.isTrained() {
+		return 0.0, fmt.Errorf("Model has to be fit first.")
+	}
+
+	dataFFI, err := data.toFFI()
+	if err != nil {
+		return 0.0, err
+	}
+	defer C.interactions_free(dataFFI)
+
+	result := C.implicit_ewma_mrr_score(*self.model, dataFFI)
+	if result.error != nil {
+		return 0.0, fmt.Errorf(C.GoString(result.error))
+	}
+
+	return float32(*result.value), nil
+}
+
+type marshalledImplicitEWMA struct {
+	Hyperparameters []byte
+	Model           []byte
+}
+
+// Serialize the model into a byte array. Satisfies the encoding.BinaryMarshaler
+// interface.
+func (self *ImplicitEWMAModel) MarshalBinary() ([]byte, error) {
+
+	hyperparameters, err := json.Marshal(self)
+	if err != nil {
+		return nil, err
+	}
+
+	var model []byte
+
+	if !self.isTrained() {
+		model = make([]byte, 0)
+	} else {
+		size := C.implicit_ewma_get_serialized_size(*self.model)
+
+		model = make([]byte, size)
+		err := C.implicit_ewma_serialize(*self.model,
+			(*C.uchar)(unsafe.Pointer(&model[0])),
+			C.size_t(len(model)))
+
+		if err != nil {
+			return nil, fmt.Errorf(C.GoString(err))
+		}
+	}
+
+	marshalledModel := marshalledImplicitEWMA{
+		Hyperparameters: hyperparameters,
+		Model:           model,
+	}
+
+	var out bytes.Buffer
+	encoder := gob.NewEncoder(&out)
+	err = encoder.Encode(&marshalledModel)
+	if err != nil {
+		return nil, err
+	}
+
+	return out.Bytes(), nil
+}
+
+// Deserialize the model from a byte array. Satisfies the encoding.BinaryUnmarshaler
+// interface.
+func (self *ImplicitEWMAModel) UnmarshalBinary(data []byte) error {
+	reader := bytes.NewBuffer(data)
+	decoder := gob.NewDecoder(reader)
+
+	marshalledModel := marshalledImplicitEWMA{}
+	err := decoder.Decode(&marshalledModel)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(marshalledModel.Hyperparameters, self)
+	if err != nil {
+		return err
+	}
+
+	if len(marshalledModel.Model) > 0 {
+		data := marshalledModel.Model
+
+		result := C.implicit_ewma_deserialize(
 			(*C.uchar)(unsafe.Pointer(&data[0])),
 			C.size_t(len(data)))
 
