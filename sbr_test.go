@@ -362,7 +362,7 @@ func TestEWMAWARP(t *testing.T) {
 		expectedMRR = 0.07
 	} else {
 		// Accelerate build.
-		expectedMRR = 0.09
+		expectedMRR = 0.089
 	}
 
 	runEWMATest(t, model, &train, &test, expectedMRR)
